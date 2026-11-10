@@ -1,0 +1,2 @@
+cryptography>=41.0.0
+pywinpty>=2.0.13; sys_platform == "win32"

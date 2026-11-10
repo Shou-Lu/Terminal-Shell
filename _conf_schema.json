@@ -1,0 +1,76 @@
+{
+  "enabled": {
+    "description": "启用终端",
+    "type": "bool",
+    "hint": "关闭后，前端将无法建立加密会话或创建任何终端。",
+    "default": true
+  },
+  "allowed_users": {
+    "description": "允许使用的 WebUI 用户",
+    "type": "list",
+    "hint": "填写 AstrBot WebUI 的用户名。留空表示所有已登录 WebUI 的用户都可以使用。",
+    "default": []
+  },
+  "shell": {
+    "description": "自定义 Shell 路径",
+    "type": "string",
+    "hint": "留空自动选择：Windows 优先 pwsh.exe / powershell.exe，Linux/macOS 使用 $SHELL。",
+    "default": ""
+  },
+  "cwd": {
+    "description": "终端启动目录",
+    "type": "string",
+    "hint": "留空使用当前用户的主目录。必须是已存在的目录。",
+    "default": ""
+  },
+  "max_sessions": {
+    "description": "每个用户最大终端数",
+    "type": "int",
+    "hint": "同时存活的终端标签上限，建议不要设置过大。",
+    "default": 8,
+    "slider": {
+      "min": 1,
+      "max": 32,
+      "step": 1
+    }
+  },
+  "idle_timeout": {
+    "description": "空闲回收时间（秒）",
+    "type": "int",
+    "hint": "超过该时间没有任何输入输出的终端会被自动关闭。默认 1800 秒。",
+    "default": 1800,
+    "slider": {
+      "min": 60,
+      "max": 86400,
+      "step": 60
+    }
+  },
+  "allow_background_upload": {
+    "description": "允许上传自定义背景",
+    "type": "bool",
+    "hint": "允许用户上传图片作为高斯泼溅背景。图片会保存在插件数据目录中。",
+    "default": true
+  },
+  "max_upload_mb": {
+    "description": "背景图片大小上限（MB）",
+    "type": "int",
+    "hint": "前端会先压缩图片，通常远小于该值。",
+    "default": 8,
+    "slider": {
+      "min": 1,
+      "max": 32,
+      "step": 1
+    }
+  },
+  "session_ttl": {
+    "description": "加密会话有效期（秒）",
+    "type": "int",
+    "hint": "ECDH 协商出的 AES 会话密钥在闲置多久后失效。页面会自动重新协商。",
+    "default": 3600,
+    "slider": {
+      "min": 300,
+      "max": 86400,
+      "step": 300
+    }
+  }
+}

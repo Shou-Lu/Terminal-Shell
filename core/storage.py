@@ -1,0 +1,120 @@
+"""Per-user background image storage for the Gaussian splat view."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import time
+from pathlib import Path
+from typing import Any
+
+ALLOWED_MIME = {
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+    "image/webp": (b"RIFF",),
+    "image/gif": (b"GIF87a", b"GIF89a"),
+    "image/bmp": (b"BM",),
+}
+
+
+class BackgroundError(Exception):
+    """A user-facing background storage error."""
+
+
+def _key(username: str | None) -> str:
+    value = (username or "anonymous").encode("utf-8")
+    return hashlib.sha256(value).hexdigest()[:24]
+
+
+class BackgroundStore:
+    """Store one background image per WebUI user on local disk."""
+
+    def __init__(self, root: Path, max_bytes: int = 8 * 1024 * 1024):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.max_bytes = max(256 * 1024, int(max_bytes))
+
+    def _paths(self, username: str | None) -> tuple[Path, Path]:
+        key = _key(username)
+        return self.root / f"{key}.bin", self.root / f"{key}.json"
+
+    def load(self, username: str | None) -> dict[str, Any] | None:
+        image_path, meta_path = self._paths(username)
+        if not image_path.is_file() or not meta_path.is_file():
+            return None
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            data = image_path.read_bytes()
+        except (OSError, ValueError):
+            return None
+        mime = meta.get("mime")
+        if mime not in ALLOWED_MIME or not data:
+            return None
+        return {
+            "mime": mime,
+            "bytes": len(data),
+            "updated_at": int(meta.get("updated_at", 0)),
+            "data": data,
+        }
+
+    def save(self, username: str | None, mime: str, data: bytes) -> dict[str, Any]:
+        if mime not in ALLOWED_MIME:
+            raise BackgroundError("不支持的图片格式")
+        if not data:
+            raise BackgroundError("图片内容为空")
+        if len(data) > self.max_bytes:
+            limit = self.max_bytes // (1024 * 1024)
+            raise BackgroundError(f"图片不能超过 {limit} MB")
+        if not self._magic_matches(mime, data[:16]):
+            raise BackgroundError("图片内容与格式不匹配")
+
+        image_path, meta_path = self._paths(username)
+        image_tmp = image_path.with_suffix(".bin.tmp")
+        meta_tmp = meta_path.with_suffix(".json.tmp")
+        meta = {
+            "mime": mime,
+            "bytes": len(data),
+            "updated_at": int(time.time()),
+        }
+        try:
+            image_tmp.write_bytes(data)
+            meta_tmp.write_text(
+                json.dumps(meta, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            os.replace(image_tmp, image_path)
+            os.replace(meta_tmp, meta_path)
+        except OSError as exc:
+            for path in (image_tmp, meta_tmp):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise BackgroundError(f"保存背景图片失败：{exc}") from exc
+
+        return {
+            "mime": mime,
+            "bytes": len(data),
+            "updated_at": meta["updated_at"],
+        }
+
+    def delete(self, username: str | None) -> bool:
+        image_path, meta_path = self._paths(username)
+        removed = False
+        for path in (image_path, meta_path):
+            try:
+                path.unlink()
+                removed = True
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise BackgroundError(f"删除背景图片失败：{exc}") from exc
+        return removed
+
+    @staticmethod
+    def _magic_matches(mime: str, header: bytes) -> bool:
+        magics = ALLOWED_MIME.get(mime, ())
+        if mime == "image/webp":
+            return len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WEBP"
+        return any(header.startswith(magic) for magic in magics)

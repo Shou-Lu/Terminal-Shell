@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "display_name": "Terminal Shell",
+    "short_desc": "Gaussian-splat multi-tab web shell for AstrBot",
+    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, user-supplied Gaussian-splat backgrounds, and ECDH + AES-256-GCM encrypted transport in both directions."
+  },
+  "config": {
+    "enabled": {
+      "description": "Enable terminal",
+      "hint": "When disabled, the view cannot create encrypted sessions or terminals."
+    },
+    "allowed_users": {
+      "description": "Allowed WebUI users",
+      "hint": "AstrBot WebUI usernames. Leave empty to allow every signed-in WebUI user."
+    },
+    "shell": {
+      "description": "Shell path",
+      "hint": "Leave empty for automatic selection: pwsh.exe / powershell.exe on Windows, $SHELL on Linux/macOS."
+    },
+    "cwd": {
+      "description": "Startup directory",
+      "hint": "Leave empty for the current user's home directory. Must exist."
+    },
+    "max_sessions": {
+      "description": "Maximum terminals per user",
+      "hint": "Upper bound for simultaneously alive terminal tabs."
+    },
+    "idle_timeout": {
+      "description": "Idle timeout (seconds)",
+      "hint": "Terminals with no input or output for this long are closed automatically. Default: 1800."
+    },
+    "allow_background_upload": {
+      "description": "Allow custom backgrounds",
+      "hint": "Allow users to upload an image for the Gaussian-splat background. Images are stored in the plugin data directory."
+    },
+    "max_upload_mb": {
+      "description": "Background size limit (MB)",
+      "hint": "The frontend compresses images, so uploads are usually much smaller."
+    },
+    "session_ttl": {
+      "description": "Encryption session TTL (seconds)",
+      "hint": "Idle lifetime of the AES key derived from ECDH. The page re-negotiates automatically."
+    }
+  },
+  "views": {
+    "terminal": {
+      "title": "Terminal Shell",
+      "description": "Multi-tab web shell with custom Gaussian-splat backgrounds and encrypted transport.",
+      "newTab": "New terminal",
+      "background": "Background",
+      "help": "Help",
+      "apply": "Apply background",
+      "reset": "Reset"
+    }
+  }
+}

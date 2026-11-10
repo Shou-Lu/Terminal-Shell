@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <title>Terminal Shell终端</title>
+    <link rel="stylesheet" href="./vendor/xterm.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <canvas id="splat-canvas" aria-hidden="true"></canvas>
+    <div class="bg-veil" aria-hidden="true"></div>
+
+    <div class="app" id="app">
+      <header class="titlebar">
+        <div class="brand" title="Terminal Shell终端">
+          <div class="brand-mark" aria-hidden="true">
+            <span>&gt;</span><span class="brand-underscore">_</span>
+          </div>
+          <div class="brand-text">
+            <strong>Terminal Shell</strong>
+            <span>终端</span>
+          </div>
+        </div>
+
+        <div
+          class="tabstrip"
+          id="tabstrip"
+          role="tablist"
+          aria-label="终端标签"
+        ></div>
+
+        <button
+          class="icon-btn new-tab"
+          id="new-tab"
+          type="button"
+          title="新建终端 (Ctrl+Shift+T)"
+          aria-label="新建终端"
+        >
+          +
+        </button>
+
+        <div class="titlebar-actions">
+          <span
+            class="crypto-badge"
+            id="crypto-badge"
+            title="ECDH P-256 协商 · HKDF-SHA256 · AES-256-GCM"
+          >
+            <i class="pulse" aria-hidden="true"></i>
+            <span>AES-256-GCM</span>
+          </span>
+          <button
+            class="ghost-btn compact"
+            id="bg-btn"
+            type="button"
+            title="自定义高斯泼溅背景"
+          >
+            背景
+          </button>
+          <button
+            class="icon-btn"
+            id="help-btn"
+            type="button"
+            title="帮助与安全说明"
+            aria-label="帮助"
+          >
+            ?
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <div class="terminals" id="terminals"></div>
+        <div class="empty-state hidden" id="empty-state">
+          <div class="empty-orb" aria-hidden="true"></div>
+          <p class="eyebrow">NO ACTIVE SESSION</p>
+          <h2>打开你的第一个终端</h2>
+          <p>每一个标签都是一条独立的 Shell 进程，输出通过加密通道实时回传。</p>
+          <button class="primary-btn" id="empty-new" type="button">
+            新建终端
+          </button>
+        </div>
+      </main>
+
+      <footer class="statusbar">
+        <span class="status-connection" id="status-connection">
+          <i class="status-dot" id="status-dot"></i>
+          <span id="status-text">正在建立加密通道…</span>
+        </span>
+        <span class="status-sep" aria-hidden="true"></span>
+        <span class="status-encryption" id="status-encryption">
+          ECDH P-256 · AES-256-GCM
+        </span>
+        <span class="spacer"></span>
+        <span class="status-mono" id="status-session"></span>
+        <span class="status-mono" id="status-size"></span>
+        <span class="status-mono" id="status-clock"></span>
+      </footer>
+    </div>
+
+    <div class="modal hidden" id="bg-modal" role="dialog" aria-modal="true" aria-labelledby="bg-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">GAUSSIAN SPLAT</p>
+            <h2 id="bg-title">高斯泼溅背景</h2>
+          </div>
+          <button class="icon-btn modal-close" type="button" data-close="bg-modal" aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <p class="modal-desc">
+          上传一张图片，前端会把它采样成数千个柔和的高斯光点。光点会随鼠标轻微漂移，形成属于你的动态终端背景。
+        </p>
+
+        <label class="dropzone" id="dropzone" for="bg-file">
+          <input type="file" id="bg-file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden />
+          <img id="bg-preview" alt="背景预览" hidden />
+          <div class="dropzone-hint" id="dropzone-hint">
+            <span class="dropzone-icon" aria-hidden="true">＋</span>
+            <strong>选择一张图片</strong>
+            <small>PNG / JPEG / WebP · 会自动压缩到适合网页的尺寸</small>
+          </div>
+        </label>
+
+        <div class="range-list">
+          <label class="range-row">
+            <span>泼溅尺寸</span>
+            <input type="range" min="0.45" max="6" step="0.05" value="3.2" data-option="size" />
+            <output data-output="size">3.20</output>
+          </label>
+          <label class="range-row">
+            <span>光晕强度</span>
+            <input type="range" min="0.35" max="2" step="0.05" value="1.2" data-option="glow" />
+            <output data-output="glow">1.20</output>
+          </label>
+          <label class="range-row">
+            <span>漂移速度</span>
+            <input type="range" min="0" max="2.5" step="0.05" value="1" data-option="drift" />
+            <output data-output="drift">1.00</output>
+          </label>
+          <label class="range-row">
+            <span>界面遮罩</span>
+            <input type="range" min="0.15" max="0.9" step="0.01" value="0.22" data-option="veil" />
+            <output data-output="veil">0.22</output>
+          </label>
+          <label class="range-row">
+            <span>终端字号</span>
+            <input type="range" min="11" max="20" step="1" value="14" data-option="fontSize" />
+            <output data-output="fontSize">14</output>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button class="ghost-btn" id="bg-reset" type="button">恢复默认</button>
+          <button class="primary-btn" id="bg-apply" type="button" disabled>应用背景</button>
+        </div>
+        <p class="modal-note" id="bg-status">
+          图片保存在 AstrBot 插件数据目录；上传与回传均走加密通道。
+        </p>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-card help-card">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">MANUAL</p>
+            <h2 id="help-title">使用说明</h2>
+          </div>
+          <button class="icon-btn modal-close" type="button" data-close="help-modal" aria-label="关闭">
+            ×
+          </button>
+        </div>
+
+        <div class="help-grid">
+          <section>
+            <h3>多标签终端</h3>
+            <p>点击标题栏的 <kbd>+</kbd> 新建终端。每个标签都是独立进程，可拖动排序、双击标题重命名、中键关闭。</p>
+          </section>
+          <section>
+            <h3>快捷键</h3>
+            <ul class="shortcut-list">
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd><span>新建终端</span></li>
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd><span>关闭当前终端</span></li>
+              <li><kbd>Ctrl</kbd>+<kbd>Tab</kbd><span>切换下一个终端</span></li>
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd><span>复制选中文本</span></li>
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd><span>粘贴</span></li>
+            </ul>
+          </section>
+          <section>
+            <h3>加密通道</h3>
+            <p>
+              页面加载时通过 ECDH P-256 生成临时会话密钥，经 HKDF-SHA256 派生 AES-256-GCM 密钥。
+              输入、输出、终端列表、背景图片全部以密文传输；每个数据包的附加认证数据都绑定到具体操作，防止跨接口重放。
+            </p>
+          </section>
+          <section>
+            <h3>安全提示</h3>
+            <p>
+              这是一个拥有 Shell 执行权限的管理工具。请只部署在可信网络中，并为 AstrBot WebUI 设置强密码。
+              可在插件配置中用 <code>allowed_users</code> 限制可访问的 WebUI 用户名。
+            </p>
+          </section>
+          <section>
+            <h3>会话保持</h3>
+            <p>
+              刷新页面后会自动恢复同一浏览器标签页创建的终端。关闭标签页不会立即结束 Shell，空闲超过配置时间后由后端自动回收。
+            </p>
+          </section>
+          <section>
+            <h3>平台说明</h3>
+            <p>
+              Linux / macOS 使用原生 PTY；Windows 使用 ConPTY（需要 <code>pywinpty</code>）。若依赖缺失，会退化为管道模式，交互式全屏程序可能无法正常显示。
+            </p>
+          </section>
+        </div>
+
+        <div class="modal-actions">
+          <button class="primary-btn" type="button" data-close="help-modal">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="./vendor/xterm.js"></script>
+    <script src="./vendor/addon-fit.js"></script>
+    <script src="./vendor/addon-web-links.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

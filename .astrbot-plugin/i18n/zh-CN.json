@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "display_name": "Terminal Shell终端",
+    "short_desc": "高斯泼溅风格的网页版多开 Shell 终端",
+    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义高斯泼溅背景，以及 ECDH + AES-256-GCM 双向加密传输。"
+  },
+  "config": {
+    "enabled": {
+      "description": "启用终端",
+      "hint": "关闭后，前端将无法建立加密会话或创建任何终端。"
+    },
+    "allowed_users": {
+      "description": "允许使用的 WebUI 用户",
+      "hint": "填写 AstrBot WebUI 的用户名。留空表示所有已登录 WebUI 的用户都可以使用。"
+    },
+    "shell": {
+      "description": "自定义 Shell 路径",
+      "hint": "留空自动选择：Windows 优先 pwsh.exe / powershell.exe，Linux/macOS 使用 $SHELL。"
+    },
+    "cwd": {
+      "description": "终端启动目录",
+      "hint": "留空使用当前用户的主目录。必须是已存在的目录。"
+    },
+    "max_sessions": {
+      "description": "每个用户最大终端数",
+      "hint": "同时存活的终端标签上限，建议不要设置过大。"
+    },
+    "idle_timeout": {
+      "description": "空闲回收时间（秒）",
+      "hint": "超过该时间没有任何输入输出的终端会被自动关闭。默认 1800 秒。"
+    },
+    "allow_background_upload": {
+      "description": "允许上传自定义背景",
+      "hint": "允许用户上传图片作为高斯泼溅背景。图片会保存在插件数据目录中。"
+    },
+    "max_upload_mb": {
+      "description": "背景图片大小上限（MB）",
+      "hint": "前端会先压缩图片，通常远小于该值。"
+    },
+    "session_ttl": {
+      "description": "加密会话有效期（秒）",
+      "hint": "ECDH 协商出的 AES 会话密钥在闲置多久后失效。页面会自动重新协商。"
+    }
+  },
+  "views": {
+    "terminal": {
+      "title": "Terminal Shell终端",
+      "description": "多标签网页 Shell，支持自定义高斯泼溅背景与双向加密传输。",
+      "newTab": "新建终端",
+      "background": "背景",
+      "help": "帮助",
+      "apply": "应用背景",
+      "reset": "恢复默认"
+    }
+  }
+}
