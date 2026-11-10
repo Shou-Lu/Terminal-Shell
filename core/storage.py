@@ -232,4 +232,3 @@ class PreferenceStore:
                 return False
             except OSError as exc:
                 raise PreferenceError(f"删除界面设置失败：{exc}") from exc
-
