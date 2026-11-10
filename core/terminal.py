@@ -663,7 +663,9 @@ class TerminalManager:
 
         cols = max(20, min(500, int(cols)))
         rows = max(5, min(300, int(rows)))
-        shell = self.shell or default_shell()
+        shell = os.path.expanduser(
+            os.path.expandvars(self.shell or default_shell())
+        )
         if not os.path.exists(shell):
             found = shutil.which(shell)
             if not found:
