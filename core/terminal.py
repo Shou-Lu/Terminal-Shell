@@ -27,7 +27,7 @@ from typing import Any
 IS_WINDOWS = os.name == "nt"
 HISTORY_BYTES = 48 * 1024
 MAX_INPUT_BYTES = 64 * 1024
-MAX_POLL_EVENTS = 1000
+MAX_POLL_EVENTS = 200
 
 
 class TerminalError(Exception):
@@ -85,7 +85,7 @@ class OutputHub:
     page reloads lossless for the retained window.
     """
 
-    def __init__(self, max_buffer_bytes: int = 320 * 1024, queue_size: int = 2000):
+    def __init__(self, max_buffer_bytes: int = 320 * 1024, queue_size: int = 256):
         self._events: deque[dict[str, Any]] = deque()
         self._buffer_bytes = 0
         self._max_buffer_bytes = max(32 * 1024, int(max_buffer_bytes))
@@ -404,7 +404,11 @@ class TerminalSession:
         ):
             loop.call_soon_threadsafe(self._finish_once, code, reason)
         else:
-            self._finish_once(code, reason, dispatch=loop is not None)
+            self._finish_once(
+                code,
+                reason,
+                dispatch=loop is not None and not loop.is_closed(),
+            )
 
     def _finish_once(
         self,
@@ -441,6 +445,8 @@ class TerminalSession:
         if dispatch:
             self._close_pipe_streams()
             self.manager.finish(self, code, reason)
+        else:
+            self._close_pipe_streams()
 
     # ------------------------------------------------------------------
     # IO
@@ -686,7 +692,14 @@ class TerminalManager:
             rows=rows,
             manager=self,
         )
-        session.start()
+        try:
+            session.start()
+        except Exception:
+            try:
+                session.close(True)
+            except Exception:
+                pass
+            raise
         self.sessions[sid] = session
 
         hub = self.hub_for(username)
@@ -806,7 +819,12 @@ class TerminalManager:
         try:
             while not self._closed:
                 await asyncio.sleep(30)
-                await self.reap()
+                try:
+                    await self.reap()
+                except Exception:
+                    # Keep the maintenance loop alive even if one session
+                    # fails to close cleanly.
+                    continue
         except asyncio.CancelledError:
             return
 

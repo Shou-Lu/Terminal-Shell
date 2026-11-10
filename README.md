@@ -12,7 +12,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-a78bfa)](./LICENSE)
 
-[功能](#功能) · [截图](#截图) · [安装](#安装) · [配置](#配置) · [加密设计](#加密设计) · [安全须知](#安全须知)
+[功能](#功能) · [安装](#安装) · [配置](#配置) · [加密设计](#加密设计) · [安全须知](#安全须知)
 
 </div>
 
@@ -42,16 +42,6 @@ Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏�
 - **访问控制**：可通过 `allowed_users` 限制允许使用的 WebUI 用户名，限制并发终端数与空闲回收时间。
 - **智能对比度**：根据背景图平均亮度自动加深玻璃面板，保证终端文字可读。
 
-## 截图
-
-![主界面](./docs/screenshot.jpg)
-
-<p align="center"><em>多标签终端 + 自定义高斯泼溅背景（示例图）</em></p>
-
-![背景设置](./docs/background.jpg)
-
-<p align="center"><em>背景设置：本地压缩、加密上传、实时预览</em></p>
-
 ## 安装
 
 ### 通过插件市场
@@ -76,16 +66,21 @@ pywinpty>=2.0.13; sys_platform == "win32"
 
 插件页 → **Terminal Shell终端** → 可视化视图 **Terminal Shell终端**。
 
+> **首次使用前必须先配置权限。** 出于安全考虑，`allowed_users` 为空且
+> `allow_all_users` 为 `false` 时，插件会拒绝所有终端访问。请在插件配置中填写
+> AstrBot WebUI 用户名，或明确开启 `allow_all_users`。
+
 > 视图运行在受限 iframe 中，必须从 AstrBot 插件详情页打开，不能直接访问 HTML 文件。
 
 ## 配置
 
-配置文件位于 `data/config/astrbot_plugin_terminal_shell_config.json`，也可以在 WebUI 插件配置页修改。
+配置文件位于 `data/config/<插件目录名>_config.json`（推荐目录名为 `astrbot_plugin_terminal_shell`），也可以在 WebUI 插件配置页修改。
 
 | 配置项 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | 关闭后前端无法建立加密会话或创建终端。 |
-| `allowed_users` | list | `[]` | 允许使用的 WebUI 用户名；留空表示所有已登录用户。强烈建议设置。 |
+| `allowed_users` | list | `[]` | 允许使用的 WebUI 用户名。留空时需要开启 `allow_all_users`，否则拒绝所有访问。 |
+| `allow_all_users` | bool | `false` | 在 `allowed_users` 为空时允许所有 WebUI 用户。终端权限较高，默认关闭。 |
 | `shell` | string | `""` | 自定义 Shell 路径。留空自动选择。 |
 | `cwd` | string | `""` | 终端启动目录，留空为用户主目录。 |
 | `max_sessions` | int | `8` | 每个用户同时存活的终端上限。 |
@@ -128,14 +123,29 @@ pywinpty>=2.0.13; sys_platform == "win32"
 背景按 WebUI 用户名隔离，保存在：
 
 ```text
-data/plugin_data/astrbot_plugin_terminal_shell/backgrounds/
+data/plugin_data/<插件目录名>/backgrounds/
 ```
 
 > 传输过程加密，但静态文件本身以原始字节保存在磁盘上。若需要静态加密，请自行使用全盘加密。
 
+### 持久化数据
+
+所有可持久化的运行时数据都位于 AstrBot 的插件数据目录，不会写入插件源码目录，更新/重装插件不会覆盖：
+
+```text
+data/plugin_data/<插件目录名>/
+├─ backgrounds/          # 自定义背景图片与元数据（按用户哈希隔离）
+└─ preferences/          # 每个 WebUI 用户的界面设置（泼溅、遮罩、字号等）
+```
+
+> 推荐把插件目录命名为 `astrbot_plugin_terminal_shell`。插件使用实际安装目录名作为
+> `plugin_data` 子目录，因此 AstrBot 删除插件时勾选“同时删除插件持久化数据”可以正确清理。
+
+界面设置会在调整后自动加密保存到服务端，并同步到 `localStorage` 作为离线回退。删除插件时勾选“同时删除插件持久化数据”即可一并清理。
+
 ### 会话保持
 
-- 刷新页面会通过 `sessionStorage` 中的 owner ID 恢复终端和最近 48 KB 输出。
+- 刷新页面会通过 `sessionStorage`（沙箱不可用时回退到 `window.name`）中的 owner ID 恢复终端和最近 48 KB 输出。
 - 关闭标签页**不会**立即杀死 Shell；超过 `idle_timeout` 后由后端回收。
 - 关闭终端标签、插件停用或 AstrBot 退出时会主动结束对应进程。
 
@@ -197,6 +207,7 @@ AES-GCM 的附加认证数据（AAD）为：
 - 务必为 AstrBot WebUI 设置强密码，并尽量只在内网或 VPN 中开放。
 - 强烈建议配置 `allowed_users`，只允许可信的 WebUI 用户名。
 - 终端进程继承 AstrBot 进程的系统权限；不要以 root / Administrator 运行 AstrBot，除非你明确知道后果。
+- 终端会继承 AstrBot 进程的环境变量。若你的部署方式把 API Key、Token 等放在环境变量中，它们可能对终端用户可见；请使用专用低权限账户运行，或改用配置文件/密钥管理。
 - 不要把 AstrBot 直接暴露在公网；如需公网访问，请在反向代理层增加 HTTPS、认证、访问控制和速率限制。
 - 背景图片会保存在插件数据目录中，请自行做好磁盘与备份权限管理。
 - 发现异常加密状态（标题栏显示「加密异常」）时，请刷新页面；不要忽略持续的解密失败。
@@ -239,7 +250,7 @@ astrbot_plugin_terminal_shell/
 ├─ core/
 │  ├─ crypto.py                # ECDH / HKDF / AES-GCM 会话与信封
 │  ├─ terminal.py              # PTY / ConPTY、输出 Hub、生命周期
-│  └─ storage.py               # 背景图片校验与按用户存储
+│  └─ storage.py               # 背景图片、界面设置的校验与持久化
 ├─ views/terminal/
 │  ├─ index.html               # 插件可视化视图
 │  ├─ style.css                # 玻璃拟态 + 响应式 UI
@@ -251,25 +262,13 @@ astrbot_plugin_terminal_shell/
 ├─ _conf_schema.json
 ├─ metadata.yaml
 ├─ logo.png
-├─ requirements.txt
-└─ tests/                      # 单元测试与本地预览服务器
+└─ requirements.txt
 ```
 
-## 开发与测试
+## 开发说明
 
-```bash
-python -m unittest discover -s tests -v
-```
-
-本地预览（不需要安装 AstrBot，使用真实加密与终端核心 + 模拟 bridge）：
-
-```bash
-python tests/devserver.py --host 0.0.0.0 --port 8765
-# 浏览器打开 http://127.0.0.1:8765/
-```
-
-- `127.0.0.1` 会走 WebCrypto；
-- 使用局域网 IP（例如 `http://192.168.1.10:8765/`）会走 Noble 回退，可用于验证 HTTP 加密路径。
+插件遵循 AstrBot 插件存储规范：配置位于 `data/config/`，可变数据位于
+`data/plugin_data/<插件目录名>/`，不会写入插件源码目录；卸载时勾选“同时删除插件持久化数据”即可清理。
 
 ### 第三方资源
 

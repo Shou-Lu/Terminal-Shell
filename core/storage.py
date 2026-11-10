@@ -1,13 +1,19 @@
-"""Per-user background image storage for the Gaussian splat view."""
+"""Per-user background and UI preference storage.
+
+All mutable plugin data lives under ``data/plugin_data/<plugin_name>/`` so
+plugin updates/reinstalls never overwrite it and AstrBot's "persistent data"
+cleanup can find it.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ALLOWED_MIME = {
     "image/jpeg": (b"\xff\xd8\xff",),
@@ -17,14 +23,46 @@ ALLOWED_MIME = {
     "image/bmp": (b"BM",),
 }
 
+PREFERENCE_SPECS: dict[str, tuple[Callable[[Any], Any], float, float]] = {
+    "size": (float, 0.45, 6.0),
+    "glow": (float, 0.35, 2.0),
+    "drift": (float, 0.0, 2.5),
+    "veil": (float, 0.15, 0.9),
+    "fontSize": (int, 11, 20),
+}
+
 
 class BackgroundError(Exception):
     """A user-facing background storage error."""
 
 
+class PreferenceError(Exception):
+    """A user-facing preference storage error."""
+
+
 def _key(username: str | None) -> str:
     value = (username or "anonymous").encode("utf-8")
     return hashlib.sha256(value).hexdigest()[:24]
+
+
+def normalize_preferences(values: Any) -> dict[str, Any]:
+    """Whitelist and clamp the small set of UI preferences we persist."""
+    if not isinstance(values, dict):
+        return {}
+    result: dict[str, Any] = {}
+    for name, (convert, lower, upper) in PREFERENCE_SPECS.items():
+        if name not in values:
+            continue
+        try:
+            value = convert(values[name])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(value, float) and value != value:  # NaN
+            continue
+        result[name] = max(lower, min(upper, value))
+    if "fontSize" in result:
+        result["fontSize"] = int(round(result["fontSize"]))
+    return result
 
 
 class BackgroundStore:
@@ -48,13 +86,19 @@ class BackgroundStore:
             data = image_path.read_bytes()
         except (OSError, ValueError):
             return None
+        if not isinstance(meta, dict):
+            return None
         mime = meta.get("mime")
         if mime not in ALLOWED_MIME or not data:
             return None
+        try:
+            updated_at = int(meta.get("updated_at", 0))
+        except (TypeError, ValueError):
+            updated_at = 0
         return {
             "mime": mime,
             "bytes": len(data),
-            "updated_at": int(meta.get("updated_at", 0)),
+            "updated_at": updated_at,
             "data": data,
         }
 
@@ -116,5 +160,76 @@ class BackgroundStore:
     def _magic_matches(mime: str, header: bytes) -> bool:
         magics = ALLOWED_MIME.get(mime, ())
         if mime == "image/webp":
-            return len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WEBP"
+            return (
+                len(header) >= 12
+                and header[:4] == b"RIFF"
+                and header[8:12] == b"WEBP"
+            )
         return any(header.startswith(magic) for magic in magics)
+
+
+class PreferenceStore:
+    """Store one small JSON document of UI preferences per WebUI user."""
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+
+    def _path(self, username: str | None) -> Path:
+        return self.root / f"{_key(username)}.json"
+
+    def load(self, username: str | None) -> dict[str, Any]:
+        path = self._path(username)
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {"settings": {}, "updated_at": 0}
+        if not isinstance(raw, dict):
+            return {"settings": {}, "updated_at": 0}
+        settings = normalize_preferences(raw.get("settings"))
+        try:
+            updated_at = int(raw.get("updated_at", 0))
+        except (TypeError, ValueError):
+            updated_at = 0
+        return {
+            "settings": settings,
+            "updated_at": updated_at,
+        }
+
+    def save(self, username: str | None, settings: Any) -> dict[str, Any]:
+        normalized = normalize_preferences(settings)
+        if not normalized:
+            raise PreferenceError("没有可保存的界面设置")
+        path = self._path(username)
+        tmp = path.with_suffix(".json.tmp")
+        payload = {
+            "settings": normalized,
+            "updated_at": int(time.time()),
+        }
+        with self._lock:
+            try:
+                tmp.write_text(
+                    json.dumps(payload, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                os.replace(tmp, path)
+            except OSError as exc:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise PreferenceError(f"保存界面设置失败：{exc}") from exc
+        return payload
+
+    def delete(self, username: str | None) -> bool:
+        path = self._path(username)
+        with self._lock:
+            try:
+                path.unlink()
+                return True
+            except FileNotFoundError:
+                return False
+            except OSError as exc:
+                raise PreferenceError(f"删除界面设置失败：{exc}") from exc
+

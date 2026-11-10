@@ -11,7 +11,11 @@
     },
     "allowed_users": {
       "description": "Allowed WebUI users",
-      "hint": "AstrBot WebUI usernames. Leave empty to allow every signed-in WebUI user."
+      "hint": "AstrBot WebUI usernames. When empty, access stays denied unless 'Allow all users' is enabled."
+    },
+    "allow_all_users": {
+      "description": "Allow every WebUI user (not recommended)",
+      "hint": "Only used when allowed_users is empty. This grants shell access, so it is off by default."
     },
     "shell": {
       "description": "Shell path",

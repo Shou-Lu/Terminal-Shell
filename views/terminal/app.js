@@ -130,6 +130,8 @@ const state = {
   creating: false,
   recovering: false,
   lastStreamErrorAt: 0,
+  prefTimer: null,
+  prefsLoaded: false,
   toastTimer: null,
   contextMenu: null,
   previewUrl: null,
@@ -210,6 +212,7 @@ async function init() {
     return;
   }
 
+  await loadPreferences();
   loadBackground();
   startConnectionWatchdog();
 }
@@ -1240,7 +1243,43 @@ function applySettings(options = {}) {
     }
     if (state.active) fitTab(state.tabs.get(state.active));
   }
-  if (options.save !== false) saveSettings();
+  if (options.save !== false) {
+    saveSettings();
+    schedulePreferenceSave();
+  }
+}
+
+async function loadPreferences() {
+  try {
+    const data = await channel.post("preferences/get", {});
+    if (data.settings && Object.keys(data.settings).length) {
+      state.settings = normalizeSettings({
+        ...state.settings,
+        ...data.settings,
+      });
+      applySettings({ fit: true, save: false });
+      saveSettings();
+    }
+  } catch (error) {
+    console.warn("preferences load failed", error);
+  } finally {
+    state.prefsLoaded = true;
+  }
+}
+
+function schedulePreferenceSave() {
+  if (!state.prefsLoaded || !channel) return;
+  if (state.prefTimer) clearTimeout(state.prefTimer);
+  state.prefTimer = setTimeout(async () => {
+    state.prefTimer = null;
+    try {
+      await channel.post("preferences/save", {
+        settings: state.settings,
+      });
+    } catch (error) {
+      console.warn("preferences save failed", error);
+    }
+  }, 700);
 }
 
 function applyTheme(isDark) {
@@ -1259,7 +1298,12 @@ function loadSettings() {
   } catch (error) {
     raw = {};
   }
+  return normalizeSettings(raw);
+}
+
+function normalizeSettings(raw) {
   const settings = { ...DEFAULT_SETTINGS };
+  if (!raw || typeof raw !== "object") return settings;
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     const value = Number(raw[key]);
     if (Number.isFinite(value)) settings[key] = value;
@@ -1416,6 +1460,7 @@ function handleGlobalKey(event) {
     const tab = state.tabs.get(state.active);
     if (tab?.term?.hasSelection()) {
       event.preventDefault();
+      event.stopPropagation();
       copyText(tab.term.getSelection());
     }
   }

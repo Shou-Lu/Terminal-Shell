@@ -11,6 +11,7 @@ import asyncio
 import base64
 import binascii
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,12 @@ from astrbot.api.web import (
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from .core.crypto import CryptoError, SessionCipher
-from .core.storage import BackgroundError, BackgroundStore
+from .core.storage import (
+    BackgroundError,
+    BackgroundStore,
+    PreferenceError,
+    PreferenceStore,
+)
 from .core.terminal import TerminalError, TerminalManager
 
 PLUGIN_NAME = "astrbot_plugin_terminal_shell"
@@ -60,13 +66,17 @@ class TerminalShellPlugin(Star):
         )
 
         try:
-            data_root = Path(get_astrbot_plugin_data_path()) / PLUGIN_NAME
+            # Use the installed directory name, matching AstrBot's plugin-data
+            # cleanup logic (data/plugin_data/<root_dir_name>).
+            data_root = Path(get_astrbot_plugin_data_path()) / PLUGIN_DIR_NAME
         except Exception:
-            data_root = Path(__file__).resolve().parent / "data"
+            data_root = Path(tempfile.gettempdir()) / PLUGIN_NAME
+        self.data_root = data_root
         self.background = BackgroundStore(
             data_root / "backgrounds",
             max_bytes=self._config_int("max_upload_mb", 8) * 1024 * 1024,
         )
+        self.preferences = PreferenceStore(data_root / "preferences")
 
         self._register_web_apis()
 
@@ -121,8 +131,17 @@ class TerminalShellPlugin(Star):
             return error_response("终端插件已被管理员禁用", status_code=403)
         allowed = self._config_list("allowed_users")
         username = request.username
-        if allowed and (not username or username not in allowed):
-            return error_response("当前用户没有使用终端的权限", status_code=403)
+        if allowed:
+            if not username or username not in allowed:
+                return error_response(
+                    "当前用户没有使用终端的权限", status_code=403
+                )
+        elif not self._config_bool("allow_all_users", False):
+            return error_response(
+                "管理员尚未配置 allowed_users，或未开启 allow_all_users，"
+                "终端访问已被安全策略拒绝",
+                status_code=403,
+            )
         return None
 
     async def _open(self, action: str):
@@ -169,6 +188,24 @@ class TerminalShellPlugin(Star):
                 self.api_background_reset,
                 ["POST"],
                 "Reset background",
+            ),
+            (
+                "preferences/get",
+                self.api_preferences_get,
+                ["POST"],
+                "Load UI preferences",
+            ),
+            (
+                "preferences/save",
+                self.api_preferences_save,
+                ["POST"],
+                "Save UI preferences",
+            ),
+            (
+                "preferences/reset",
+                self.api_preferences_reset,
+                ["POST"],
+                "Reset UI preferences",
             ),
         ]
         for route, handler, methods, desc in routes:
@@ -311,7 +348,7 @@ class TerminalShellPlugin(Star):
         except (TypeError, ValueError):
             since = 0
         hub = self.manager.hub_for(request.username)
-        events = hub.snapshot(since, 1000)
+        events = hub.snapshot(since, 200)
         last_seq = events[-1]["q"] if events else hub.seq
         return json_response(
             self.cipher.encrypt(
@@ -371,7 +408,6 @@ class TerminalShellPlugin(Star):
             headers={
                 "Cache-Control": "no-cache, no-transform",
                 "X-Accel-Buffering": "no",
-                "Connection": "keep-alive",
             },
         )
 
@@ -441,6 +477,55 @@ class TerminalShellPlugin(Star):
             self.cipher.encrypt(
                 session.sid,
                 "background/reset",
+                {"ok": True, "removed": removed},
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # UI preferences (persistent, per WebUI user)
+    # ------------------------------------------------------------------
+    async def api_preferences_get(self):
+        payload, session, error = await self._open("preferences/get")
+        if error is not None:
+            return error
+        assert session is not None
+        data = self.preferences.load(request.username)
+        return json_response(
+            self.cipher.encrypt(session.sid, "preferences/get", data)
+        )
+
+    async def api_preferences_save(self):
+        payload, session, error = await self._open("preferences/save")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        settings = payload.get("settings")
+        if not isinstance(settings, dict):
+            return error_response("界面设置参数不正确", status_code=400)
+        try:
+            data = self.preferences.save(request.username, settings)
+        except PreferenceError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to save preferences")
+            return error_response("保存界面设置失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "preferences/save", data)
+        )
+
+    async def api_preferences_reset(self):
+        payload, session, error = await self._open("preferences/reset")
+        if error is not None:
+            return error
+        assert session is not None
+        try:
+            removed = self.preferences.delete(request.username)
+        except PreferenceError as exc:
+            return error_response(str(exc), status_code=400)
+        return json_response(
+            self.cipher.encrypt(
+                session.sid,
+                "preferences/reset",
                 {"ok": True, "removed": removed},
             )
         )
