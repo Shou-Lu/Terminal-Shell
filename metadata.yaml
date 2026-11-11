@@ -6,3 +6,32 @@ version: v1.0.0
 author: Shou-Lu
 repo: https://github.com/Shou-Lu/Terminal-Shell
 astrbot_version: ">=4.17.0"
+tags:
+  - terminal
+  - shell
+  - webui
+  - gaussian-splatting
+  - encrypted
+  - multi-tab
+  - 终端
+  - 运维
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - qq_official_webhook
+  - telegram
+  - wecom
+  - wecom_ai_bot
+  - lark
+  - dingtalk
+  - discord
+  - slack
+  - kook
+  - vocechat
+  - weixin_official_account
+  - weixin_oc
+  - satori
+  - misskey
+  - line
+  - matrix
+  - mattermost
