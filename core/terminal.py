@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .guard import TerminalLineGuard
+
 IS_WINDOWS = os.name == "nt"
 # Keep enough transcript for a full xterm scrollback so a destroyed iframe
 # (for example when navigating to another AstrBot page) can be rebuilt.
@@ -199,6 +201,7 @@ class TerminalSession:
     exit_reason: str = ""
     backend: str = "unknown"
     history: bytearray = field(default_factory=bytearray)
+    line_guard: TerminalLineGuard = field(default_factory=TerminalLineGuard)
 
     _proc: Any = None
     _master_fd: int | None = None
@@ -427,6 +430,16 @@ class TerminalSession:
         if len(self.history) > HISTORY_BYTES:
             del self.history[: len(self.history) - HISTORY_BYTES]
         self.manager.publish_output(self, chunk)
+
+    def notice(self, message: str) -> None:
+        """Render an internal notice without sending it to the shell."""
+        if not self.alive:
+            return
+        line = (
+            f"\r\n\x1b[38;2;255;196;107m[Terminal Shell] {message}"
+            "\x1b[0m\r\n"
+        )
+        self._emit(line.encode("utf-8"))
 
     def _emit_threadsafe(self, chunk: bytes) -> None:
         loop = self._loop
@@ -807,7 +820,32 @@ class TerminalManager:
     def write(self, sid: str, username: str | None, data: bytes) -> None:
         if len(data) > MAX_INPUT_BYTES:
             raise TerminalError("单次输入数据过大")
-        self.get(sid, username).write(data)
+        session = self.get(sid, username)
+        payload, refusal = session.line_guard.feed(data)
+        if payload:
+            session.write(payload)
+        if refusal:
+            # Clear the line where possible (Ctrl+U then Ctrl+C). The Enter is
+            # intentionally never forwarded, so the command cannot execute.
+            try:
+                session.write(b"\x15\x03")
+            except TerminalError:
+                pass
+            session.notice(f"高危指令已拦截：{refusal}；命令未执行。")
+            hint = ""
+            if session.backend == "pipe":
+                # Pipe-backed shells may ignore line-editing control bytes, so
+                # the dangerous text could remain in their input buffer and run
+                # on the next Enter. Close this session instead of risking it.
+                try:
+                    session.close(force=True)
+                except Exception:
+                    pass
+                hint = "当前终端已关闭，请新建标签。"
+            raise TerminalError(
+                f"[高危指令拦截] 已拒绝执行：{refusal}。"
+                f"命令未发送到 Shell。{hint}"
+            )
 
     def resize(self, sid: str, username: str | None, cols: int, rows: int) -> None:
         self.get(sid, username).resize(

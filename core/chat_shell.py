@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .guard import check_command
 from .storage import SessionSnapshotStore
 from .terminal import TerminalError, TerminalManager
 
@@ -65,6 +66,15 @@ class PersistentChatShell:
         command = command.strip()
         if not command:
             return await self.tail(key, self.chat_output_chars)
+
+        refusal = check_command(command)
+        if refusal:
+            return (
+                f"[高危指令拦截] 已拒绝执行：{refusal}。\n"
+                "该命令可能格式化磁盘、破坏分区或删除系统数据，"
+                "因此没有发送到 Shell。如确有需要，请在服务器本机终端中"
+                "操作，并先确认备份和磁盘编号。"
+            )
 
         entry = self._entry(key)
         async with entry.lock:
