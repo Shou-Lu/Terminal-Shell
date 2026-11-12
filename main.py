@@ -96,7 +96,7 @@ class TerminalShellPlugin(Star):
             * 1024
             * 1024,
         )
-        self.monitor = SystemMonitor(interval=2.0, points=90)
+        self.monitor = SystemMonitor(interval=0.5, points=180)
 
         self._register_web_apis()
 

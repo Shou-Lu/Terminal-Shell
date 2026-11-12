@@ -334,8 +334,8 @@ class SystemMonitor:
         self,
         root: str | os.PathLike[str] | None = None,
         *,
-        interval: float = 2.0,
-        points: int = 90,
+        interval: float = 0.5,
+        points: int = 180,
     ) -> None:
         self.root = Path(root).expanduser() if root else Path.home()
         try:
@@ -343,7 +343,7 @@ class SystemMonitor:
                 self.root = Path.home()
         except OSError:
             self.root = Path.home()
-        self.interval = max(1.0, float(interval))
+        self.interval = max(0.2, float(interval))
         self.points = max(10, int(points))
         self.started_at = time.time()
         self._task: asyncio.Task | None = None

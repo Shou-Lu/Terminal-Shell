@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
-const POLL_MS = 3000;
+const POLL_MS = 500;
 const SERIES_COLORS = {
   cpu: "#00d2ff",
   memory: "#ff6b9d",
@@ -11,6 +11,7 @@ const state = {
   channel: null,
   active: false,
   timer: null,
+  pollGen: 0,
   loading: false,
   data: null,
   receivedAt: 0,
@@ -95,12 +96,22 @@ function deactivate() {
 
 function startPolling() {
   if (state.timer) return;
-  state.timer = setInterval(() => refresh(false), POLL_MS);
+  const gen = ++state.pollGen;
+  const loop = async () => {
+    if (gen !== state.pollGen || !state.active) return;
+    await refresh(false);
+    if (gen !== state.pollGen || !state.active) return;
+    // Chain the next request only after this one settles so a slow backend
+    // never stacks overlapping polls, and never blocks the UI thread.
+    state.timer = setTimeout(loop, POLL_MS);
+  };
+  state.timer = setTimeout(loop, POLL_MS);
 }
 
 function stopPolling() {
+  state.pollGen += 1;
   if (state.timer) {
-    clearInterval(state.timer);
+    clearTimeout(state.timer);
     state.timer = null;
   }
 }
@@ -195,7 +206,6 @@ function render(data) {
     ["内存可用", formatBytes(memory.available)],
     ["磁盘根目录", truncate(disk.path, 46)],
     ["磁盘可用", formatBytes(disk.free)],
-    ["采样间隔", `${data.interval || 2} 秒`],
   ]);
 
   drawAll(series);

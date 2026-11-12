@@ -260,6 +260,10 @@ function setView(name, options = {}) {
   const changed = previous !== next;
 
   if (changed && previous === "status") statusController?.deactivate();
+  if (changed && next !== "terminal") {
+    const active = state.active ? state.tabs.get(state.active) : null;
+    active?.term?.blur();
+  }
 
   state.view = next;
   document.body.dataset.view = next;
@@ -276,9 +280,7 @@ function setView(name, options = {}) {
   elements.statusView.classList.toggle("hidden", next !== "status");
 
   if (next === "terminal") {
-    if (state.active) {
-      requestAnimationFrame(() => fitTab(state.tabs.get(state.active)));
-    }
+    refreshTerminalView();
   } else if (next === "files") {
     ensureFilesController()?.activate();
   } else if (next === "status") {
@@ -292,6 +294,22 @@ function setView(name, options = {}) {
       // localStorage can be unavailable inside sandboxed frames.
     }
   }
+}
+
+function refreshTerminalView() {
+  if (state.view !== "terminal") return;
+  const tab = state.active ? state.tabs.get(state.active) : null;
+  if (!tab?.term) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fitTab(tab);
+      try {
+        tab.term.refresh(0, Math.max(0, tab.term.rows - 1));
+      } catch (error) {
+        console.warn("terminal refresh failed", error);
+      }
+    });
+  });
 }
 
 function startConnectionWatchdog() {
@@ -671,6 +689,12 @@ function createTerminalInstance(tab) {
 
 function fitTab(tab) {
   if (!tab?.term || !tab.pane.classList.contains("active")) return;
+  if (state.view !== "terminal") return;
+  if (elements.workspace?.classList.contains("hidden")) return;
+  const rect = tab.host.getBoundingClientRect();
+  // A hidden workspace reports a 0x0 box. Resizing xterm to that size
+  // reflows (and can destroy) the scrollback, so never fit while hidden.
+  if (rect.width < 24 || rect.height < 24) return;
   try {
     tab.fit.fit();
   } catch (error) {

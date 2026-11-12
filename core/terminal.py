@@ -26,7 +26,9 @@ from pathlib import Path
 from typing import Any
 
 IS_WINDOWS = os.name == "nt"
-HISTORY_BYTES = 48 * 1024
+# Keep enough transcript for a full xterm scrollback so a destroyed iframe
+# (for example when navigating to another AstrBot page) can be rebuilt.
+HISTORY_BYTES = 512 * 1024
 MAX_INPUT_BYTES = 64 * 1024
 MAX_POLL_EVENTS = 200
 LOCALE_ENCODING = locale.getpreferredencoding(False) or "utf-8"
@@ -781,8 +783,13 @@ class TerminalManager:
         sessions = [
             session for session in self._sessions_for(username) if session.alive
         ]
-        if owner:
-            sessions = [session for session in sessions if session.owner == owner]
+        # AstrBot plugin views live in a sandboxed iframe without Web
+        # Storage, so the owner id changes whenever the iframe is recreated
+        # (for example after visiting another dashboard page and coming back).
+        # Owner ids therefore cannot isolate sessions reliably: list every
+        # live session that belongs to this WebUI user so the recreated view
+        # can rebuild its terminals and replay their history instead of
+        # starting from a blank shell.
         sessions.sort(key=lambda item: item.created_at)
         hub = self.hub_for(username)
         return {
