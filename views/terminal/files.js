@@ -15,19 +15,30 @@ const state = {
   channel: null,
   loaded: false,
   loading: false,
+  fabOpen: false,
+  rowMenuAnchor: null,
 };
+
+let rowMenu = null;
 
 const elements = {
   fileList: $("fm-file-list"),
   empty: $("fm-empty-state"),
   breadcrumb: $("fm-breadcrumb"),
+  title: $("fm-title"),
   rootLabel: $("fm-root"),
   status: $("fm-status"),
+  count: $("fm-count"),
   mode: $("fm-mode"),
   cryptoBadge: $("fm-crypto-badge"),
   refresh: $("fm-refresh"),
   mkdir: $("fm-mkdir"),
   up: $("fm-up"),
+  fab: $("fm-fab"),
+  fabWrap: $("fm-fab-wrap"),
+  fabMenu: $("fm-fab-menu"),
+  upload: $("fm-upload"),
+  emptyUpload: $("fm-empty-upload"),
   fileInput: $("fm-file-input"),
   modal: $("fm-modal"),
   modalTitle: $("fm-modal-title"),
@@ -69,7 +80,19 @@ function bindUi() {
   if (state.bound) return;
   state.bound = true;
   elements.refresh.addEventListener("click", () => load(state.path));
-  elements.mkdir.addEventListener("click", createFolder);
+  elements.mkdir.addEventListener("click", () => {
+    setFab(false);
+    createFolder();
+  });
+  elements.fab.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setFab(!state.fabOpen);
+  });
+  elements.upload.addEventListener("click", () => {
+    setFab(false);
+    elements.fileInput.click();
+  });
+  elements.emptyUpload.addEventListener("click", () => elements.fileInput.click());
   elements.up.addEventListener("click", () => {
     const parent = parentPath(state.path);
     if (parent !== null) load(parent);
@@ -94,14 +117,37 @@ function bindUi() {
     if (state.preview) downloadEntry(state.preview);
   });
   elements.previewSave.addEventListener("click", savePreview);
+  elements.fileList.addEventListener("scroll", closeRowMenu);
+  window.addEventListener("resize", closeRowMenu);
+  document.addEventListener("pointerdown", (event) => {
+    if (
+      state.fabOpen &&
+      !elements.fabWrap.contains(event.target)
+    ) {
+      setFab(false);
+    }
+    if (
+      rowMenu &&
+      !rowMenu.classList.contains("hidden") &&
+      !rowMenu.contains(event.target) &&
+      !state.rowMenuAnchor?.contains(event.target)
+    ) {
+      closeRowMenu();
+    }
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!elements.previewModal.classList.contains("hidden")) {
       closePreview();
     } else if (!elements.modal.classList.contains("hidden")) {
       closeModal(null);
+    } else if (rowMenu && !rowMenu.classList.contains("hidden")) {
+      closeRowMenu();
+    } else if (state.fabOpen) {
+      setFab(false);
     }
   });
+  document.addEventListener("pointerdown", rippleAt);
 }
 
 async function api(action, payload) {
@@ -126,9 +172,15 @@ async function load(path) {
     state.maxBytes = data.max_bytes || state.maxBytes;
     elements.rootLabel.textContent = state.root;
     elements.rootLabel.title = state.root;
+    elements.title.textContent = state.path
+      ? state.path.split("/").filter(Boolean).pop()
+      : "文件";
+    elements.title.title = state.path || "文件";
+    elements.up.disabled = !state.path;
+    elements.count.textContent = `${state.entries.length} 项`;
     renderBreadcrumb();
     renderEntries();
-    setStatus(`共 ${state.entries.length} 项 · ${state.path || "/"}`);
+    setStatus(`已加载 ${state.entries.length} 项`);
     updateBadge(true);
   } catch (error) {
     console.error(error);
@@ -144,7 +196,8 @@ function renderBreadcrumb() {
   const rootButton = document.createElement("button");
   rootButton.className = "fm-crumb" + (state.path ? "" : " current");
   rootButton.type = "button";
-  rootButton.textContent = "/";
+  rootButton.textContent = "根目录";
+  rootButton.title = "/";
   rootButton.addEventListener("click", () => load(""));
   elements.breadcrumb.append(rootButton);
 
@@ -154,12 +207,13 @@ function renderBreadcrumb() {
     current = current ? `${current}/${part}` : part;
     const sep = document.createElement("span");
     sep.className = "fm-crumb-sep";
-    sep.textContent = "/";
+    sep.textContent = "›";
     elements.breadcrumb.append(sep);
     const button = document.createElement("button");
     button.className = "fm-crumb";
     button.type = "button";
     button.textContent = part;
+    button.title = current;
     const target = current;
     button.addEventListener("click", () => load(target));
     elements.breadcrumb.append(button);
@@ -182,58 +236,122 @@ function renderEntries() {
 function buildRow(entry) {
   const row = document.createElement("div");
   row.className = "fm-row";
+  row.setAttribute("role", "listitem");
 
-  const name = document.createElement("button");
-  name.className = "fm-name";
-  name.type = "button";
-  name.title = entry.path;
+  const main = document.createElement("button");
+  main.className = "fm-row-main";
+  main.type = "button";
+  main.title = entry.path;
+  main.addEventListener("click", () => openEntry(entry));
 
+  const kind = entry.is_dir ? "folder" : fileKind(entry.name);
   const icon = document.createElement("span");
-  icon.className = "fm-file-icon" + (entry.is_dir ? " dir" : "");
-  icon.textContent = entry.is_dir ? "DIR" : fileBadge(entry.name);
+  icon.className = "fm-file-icon";
+  icon.dataset.kind = kind;
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = iconSvg(KIND_ICONS[kind] || "file");
 
+  const text = document.createElement("span");
+  text.className = "fm-text";
   const fileName = document.createElement("span");
   fileName.className = "fm-filename";
   fileName.textContent = entry.name;
-  name.append(icon, fileName);
-  name.addEventListener("click", () => {
-    if (entry.is_dir) load(entry.path);
-    else openPreview(entry);
+  const subtitle = document.createElement("span");
+  subtitle.className = "fm-sub";
+  subtitle.textContent = entry.is_dir
+    ? "文件夹"
+    : `${formatBytes(entry.size)} · ${formatTime(entry.mtime)}`;
+  text.append(fileName, subtitle);
+  main.append(icon, text);
+
+  const menu = document.createElement("button");
+  menu.type = "button";
+  menu.className = "fm-row-menu-btn";
+  menu.setAttribute("aria-label", `更多操作：${entry.name}`);
+  menu.setAttribute("aria-haspopup", "menu");
+  menu.setAttribute("aria-expanded", "false");
+  menu.innerHTML = iconSvg("more");
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openRowMenu(entry, menu);
   });
 
-  const size = document.createElement("span");
-  size.className = "fm-meta";
-  size.textContent = entry.is_dir ? "—" : formatBytes(entry.size);
-
-  const mtime = document.createElement("span");
-  mtime.className = "fm-meta";
-  mtime.textContent = formatTime(entry.mtime);
-
-  const actions = document.createElement("div");
-  actions.className = "fm-row-actions";
-
-  if (!entry.is_dir) {
-    actions.append(
-      miniButton("下载", () => downloadEntry(entry)),
-      miniButton("预览", () => openPreview(entry)),
-    );
-  }
-  actions.append(
-    miniButton("重命名", () => renameEntry(entry)),
-    miniButton("删除", () => deleteEntry(entry), true),
-  );
-
-  row.append(name, size, mtime, actions);
+  row.append(main, menu);
   return row;
 }
 
-function miniButton(label, handler, danger = false) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "fm-mini" + (danger ? " danger" : "");
-  button.textContent = label;
-  button.addEventListener("click", handler);
-  return button;
+function openEntry(entry) {
+  if (entry.is_dir) load(entry.path);
+  else openPreview(entry);
+}
+
+function openRowMenu(entry, anchor) {
+  const menu = ensureRowMenu();
+  menu.replaceChildren();
+  const actions = [];
+  if (!entry.is_dir) {
+    actions.push(["预览", "eye", () => openPreview(entry)]);
+    actions.push(["下载", "download", () => downloadEntry(entry)]);
+  }
+  actions.push(["重命名", "edit", () => renameEntry(entry)]);
+  actions.push(["删除", "delete", () => deleteEntry(entry), true]);
+
+  for (const [label, iconName, handler, danger] of actions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fm-menu-item" + (danger ? " danger" : "");
+    button.setAttribute("role", "menuitem");
+    button.innerHTML = iconSvg(iconName);
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(text);
+    button.addEventListener("click", () => {
+      closeRowMenu();
+      handler();
+    });
+    menu.append(button);
+  }
+
+  closeRowMenu();
+  menu.classList.remove("hidden");
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  const rect = anchor.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const left = Math.max(
+    10,
+    Math.min(rect.right - width, window.innerWidth - width - 10),
+  );
+  let top = rect.bottom + 6;
+  if (top + height > window.innerHeight - 10) {
+    top = Math.max(10, rect.top - height - 6);
+  }
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  anchor.setAttribute("aria-expanded", "true");
+  state.rowMenuAnchor = anchor;
+}
+
+function ensureRowMenu() {
+  if (rowMenu) return rowMenu;
+  rowMenu = document.createElement("div");
+  rowMenu.className = "fm-menu hidden";
+  rowMenu.setAttribute("role", "menu");
+  document.body.append(rowMenu);
+  return rowMenu;
+}
+
+function closeRowMenu() {
+  if (rowMenu) rowMenu.classList.add("hidden");
+  state.rowMenuAnchor?.setAttribute("aria-expanded", "false");
+  state.rowMenuAnchor = null;
+}
+
+function setFab(open) {
+  state.fabOpen = Boolean(open);
+  elements.fab.setAttribute("aria-expanded", state.fabOpen ? "true" : "false");
+  elements.fabMenu.classList.toggle("hidden", !state.fabOpen);
 }
 
 async function createFolder() {
@@ -540,11 +658,95 @@ function formatTime(seconds) {
   }
 }
 
-function fileBadge(name) {
-  if (!name || name.startsWith(".")) return "FILE";
-  const ext = (name.split(".").pop() || "").toLowerCase();
-  if (!ext || ext === name.toLowerCase()) return "FILE";
-  return ext.slice(0, 4).toUpperCase();
+const ICONS = {
+  folder:
+    "M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+  file:
+    "M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
+  image:
+    "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
+  archive:
+    "M20 2H4c-1.1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-.9-2-2-2zm-5 12H9v-2h6v2zm5-7H4V4h16v3z",
+  code:
+    "M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z",
+  audio:
+    "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z",
+  video:
+    "M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z",
+  pdf:
+    "M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 9.5h1v-1H9v1zm0 2h1.5V13H9V7h2c.83 0 1.5.67 1.5 1.5v1c0 .83-.67 1.5-1.5 1.5H9zm5.5 1.5H13V7h1.5c.83 0 1.5.67 1.5 1.5v3c0 .83-.67 1.5-1.5 1.5zm4-4H17v1h1.5V11H17v2h-1.5V7h3v1.5zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z",
+  more:
+    "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+  eye:
+    "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z",
+  download:
+    "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
+  edit:
+    "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+  delete:
+    "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+};
+
+const KIND_ICONS = {
+  folder: "folder",
+  image: "image",
+  archive: "archive",
+  code: "code",
+  audio: "audio",
+  video: "video",
+  pdf: "pdf",
+  file: "file",
+};
+
+const KIND_EXTENSIONS = {
+  image: [
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "avif", "heic", "tif", "tiff",
+  ],
+  archive: [
+    "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz", "zipx", "iso", "cab",
+  ],
+  code: [
+    "js", "mjs", "cjs", "ts", "tsx", "jsx", "json", "html", "htm", "css", "scss",
+    "less", "py", "sh", "bash", "zsh", "fish", "bat", "cmd", "ps1", "c", "h",
+    "cpp", "hpp", "cc", "java", "kt", "go", "rs", "php", "rb", "sql", "yml",
+    "yaml", "toml", "ini", "cfg", "conf", "md", "markdown", "txt", "log", "xml",
+    "env", "gitignore", "dockerfile",
+  ],
+  audio: ["mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "opus", "mid"],
+  video: ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg"],
+  pdf: ["pdf"],
+};
+
+function iconSvg(name) {
+  const path = ICONS[name] || ICONS.file;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+function fileKind(name) {
+  const value = String(name || "").toLowerCase();
+  const ext = value.includes(".") ? value.split(".").pop() : value;
+  for (const [kind, extensions] of Object.entries(KIND_EXTENSIONS)) {
+    if (extensions.includes(ext)) return kind;
+  }
+  return "file";
+}
+
+function rippleAt(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  const host = event.target.closest?.(
+    ".fm-crumb, .fm-row-main, .fm-row-menu-btn, .fm-fab, .fm-fab-action, .fm-iconbtn, .fm-btn, .fm-textbtn, .fm-menu-item, .fm-icon-btn",
+  );
+  if (!host) return;
+  const rect = host.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 2;
+  const ripple = document.createElement("span");
+  ripple.className = "fm-ripple";
+  ripple.style.width = `${size}px`;
+  ripple.style.height = `${size}px`;
+  ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+  ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+  host.append(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
 }
 
 function isTextMime(mime) {

@@ -11,7 +11,6 @@ import asyncio
 import base64
 import binascii
 import json
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -73,9 +72,23 @@ class TerminalShellPlugin(Star):
         try:
             # Use the installed directory name, matching AstrBot's plugin-data
             # cleanup logic (data/plugin_data/<root_dir_name>).
-            data_root = Path(get_astrbot_plugin_data_path()) / PLUGIN_DIR_NAME
-        except Exception:
-            data_root = Path(tempfile.gettempdir()) / PLUGIN_NAME
+            plugin_data_root = get_astrbot_plugin_data_path()
+        except Exception as exc:
+            raise RuntimeError(
+                "Terminal Shell 无法获取 AstrBot 插件数据目录，已拒绝启动。"
+                "为避免把加密密钥、会话快照和用户设置写入临时目录，"
+                "请修复 AstrBot 的数据目录配置后重载插件。"
+            ) from exc
+        if not plugin_data_root:
+            raise RuntimeError(
+                "AstrBot 返回了空的插件数据目录，Terminal Shell 已拒绝启动。"
+            )
+        data_root = Path(plugin_data_root) / PLUGIN_DIR_NAME
+        if not data_root.is_absolute():
+            raise RuntimeError(
+                "AstrBot 返回的插件数据目录不是绝对路径，Terminal Shell "
+                "已拒绝启动，避免把持久化数据写入当前工作目录。"
+            )
         self.data_root = data_root
         self.background = BackgroundStore(
             data_root / "backgrounds",
