@@ -2,20 +2,12 @@
   "metadata": {
     "display_name": "Terminal Shell",
     "short_desc": "Gaussian-splat multi-tab web shell for AstrBot",
-    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, user-supplied Gaussian-splat backgrounds, and ECDH + AES-256-GCM encrypted transport in both directions."
+    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, user-supplied Gaussian-splat backgrounds, ECDH + AES-256-GCM encrypted transport, an admin-only /terminal command and an LLM shell tool."
   },
   "config": {
     "enabled": {
       "description": "Enable terminal",
       "hint": "When disabled, the view cannot create encrypted sessions or terminals."
-    },
-    "allowed_users": {
-      "description": "Allowed WebUI users",
-      "hint": "AstrBot WebUI usernames. When empty, access stays denied unless 'Allow all users' is enabled."
-    },
-    "allow_all_users": {
-      "description": "Allow every WebUI user (not recommended)",
-      "hint": "Only used when allowed_users is empty. This grants shell access, so it is off by default."
     },
     "shell": {
       "description": "Shell path",

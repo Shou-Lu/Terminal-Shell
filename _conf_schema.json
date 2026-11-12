@@ -5,18 +5,6 @@
     "hint": "关闭后，前端将无法建立加密会话或创建任何终端。",
     "default": true
   },
-  "allowed_users": {
-    "description": "允许使用的 WebUI 用户",
-    "type": "list",
-    "hint": "填写 AstrBot WebUI 的用户名。留空时还需要开启下方“允许所有用户”，否则默认拒绝所有访问。",
-    "default": []
-  },
-  "allow_all_users": {
-    "description": "允许所有 WebUI 用户（不推荐）",
-    "type": "bool",
-    "hint": "仅在 allowed_users 为空时生效。终端拥有服务器 Shell 权限，默认关闭；开启前请确认 WebUI 只对可信用户开放。",
-    "default": false
-  },
   "shell": {
     "description": "自定义 Shell 路径",
     "type": "string",

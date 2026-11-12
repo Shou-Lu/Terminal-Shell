@@ -2,20 +2,12 @@
   "metadata": {
     "display_name": "Terminal Shell终端",
     "short_desc": "高斯泼溅风格的网页版多开 Shell 终端",
-    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义高斯泼溅背景，以及 ECDH + AES-256-GCM 双向加密传输。"
+    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义高斯泼溅背景、ECDH + AES-256-GCM 双向加密传输，并提供 /终端 管理员指令与 LLM Shell 工具。"
   },
   "config": {
     "enabled": {
       "description": "启用终端",
       "hint": "关闭后，前端将无法建立加密会话或创建任何终端。"
-    },
-    "allowed_users": {
-      "description": "允许使用的 WebUI 用户",
-      "hint": "填写 AstrBot WebUI 的用户名。留空时还需要开启下方“允许所有用户”，否则默认拒绝所有访问。"
-    },
-    "allow_all_users": {
-      "description": "允许所有 WebUI 用户（不推荐）",
-      "hint": "仅在 allowed_users 为空时生效。终端拥有服务器 Shell 权限，默认关闭。"
     },
     "shell": {
       "description": "自定义 Shell 路径",

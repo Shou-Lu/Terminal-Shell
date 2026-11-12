@@ -39,7 +39,7 @@ Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏�
 - **会话恢复**：刷新页面后自动恢复同一浏览器标签页创建的终端和最近输出。
 - **移动端适配**：响应式布局，触屏设备提供 Esc、Tab、Ctrl+C、方向键等快捷按键。
 - **可调外观**：泼溅尺寸、光晕强度、漂移速度、界面遮罩、终端字号均可实时调节并本地记忆。
-- **访问控制**：可通过 `allowed_users` 限制允许使用的 WebUI 用户名，限制并发终端数与空闲回收时间。
+- **访问控制**：WebUI 视图默认允许所有已登录用户；`/终端` 与 LLM 工具默认仅管理员可用，并受 AstrBot 指令权限管理约束。
 - **智能对比度**：根据背景图平均亮度自动加深玻璃面板，保证终端文字可读。
 
 ## 安装
@@ -66,11 +66,8 @@ pywinpty>=2.0.13; sys_platform == "win32"
 
 插件页 → **Terminal Shell终端** → 可视化视图 **Terminal Shell终端**。
 
-> **首次使用前必须先配置权限。** 出于安全考虑，`allowed_users` 为空且
-> `allow_all_users` 为 `false` 时，插件会拒绝所有终端访问。请在插件配置中填写
-> AstrBot WebUI 用户名，或明确开启 `allow_all_users`。
-
 > 视图运行在受限 iframe 中，必须从 AstrBot 插件详情页打开，不能直接访问 HTML 文件。
+> WebUI 视图默认允许所有已登录的 AstrBot 用户访问；请务必为 WebUI 设置强密码。
 
 ## 配置
 
@@ -79,8 +76,6 @@ pywinpty>=2.0.13; sys_platform == "win32"
 | 配置项 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | 关闭后前端无法建立加密会话或创建终端。 |
-| `allowed_users` | list | `[]` | 允许使用的 WebUI 用户名。留空时需要开启 `allow_all_users`，否则拒绝所有访问。 |
-| `allow_all_users` | bool | `false` | 在 `allowed_users` 为空时允许所有 WebUI 用户。终端权限较高，默认关闭。 |
 | `shell` | string | `""` | 自定义 Shell 路径。留空自动选择。 |
 | `cwd` | string | `""` | 终端启动目录，留空为用户主目录。 |
 | `max_sessions` | int | `8` | 每个用户同时存活的终端上限。 |
@@ -111,6 +106,26 @@ pywinpty>=2.0.13; sys_platform == "win32"
 
 右键终端区域可以复制选中、复制全部、粘贴、清空屏幕、关闭终端。
 
+### 聊天指令 / LLM 工具
+
+插件注册了管理员指令：
+
+```text
+/终端 <命令>
+```
+
+- 默认**仅 AstrBot 管理员（超管）**可用
+- 在持久化 Shell 中执行命令，回复内容就是终端输出
+- 不带参数时返回该会话最近一次持久化的终端输出
+- 每个聊天用户拥有独立的持久化 Shell；执行 `cd` 等状态会在进程存活期间保持
+- 每次执行后，当前 Shell 的最近输出会加密保存，插件重载或进程被回收后下次执行会自动重建 Shell 并恢复历史
+- 单条命令默认等待 25 秒；超时会返回已捕获输出并重置该 Shell，交互式命令请使用 WebUI 终端
+
+同时注册 LLM 工具 `terminal_shell_exec`，模型可在管理员会话中调用同一持久化 Shell：
+
+> `/终端` 与 `terminal_shell_exec` 都只对管理员开放。非管理员调用 LLM 工具会直接返回权限不足，不会执行任何命令。
+> LLM 工具会把终端输出标记为不可信数据，避免命令输出中的内容被当作指令执行。
+
 ### 背景
 
 点击标题栏「背景」：
@@ -135,8 +150,11 @@ data/plugin_data/<插件目录名>/backgrounds/
 ```text
 data/plugin_data/<插件目录名>/
 ├─ backgrounds/          # 自定义背景图片与元数据（按用户哈希隔离）
-└─ preferences/          # 每个 WebUI 用户的界面设置（泼溅、遮罩、字号等）
+├─ preferences/          # 每个 WebUI 用户的界面设置（泼溅、遮罩、字号等）
+└─ sessions/             # 聊天/LLM 持久化 Shell 的加密输出快照
 ```
+
+会话快照使用 AES-256-GCM 加密，密钥保存在同目录的 `.session.key`（权限 0600）；该密钥与密文位于同一插件数据目录，主要用于避免明文输出被直接读取/备份，不能替代全盘加密或操作系统账户隔离。
 
 > 推荐把插件目录命名为 `astrbot_plugin_terminal_shell`。插件使用实际安装目录名作为
 > `plugin_data` 子目录，因此 AstrBot 删除插件时勾选“同时删除插件持久化数据”可以正确清理。
@@ -205,7 +223,7 @@ AES-GCM 的附加认证数据（AAD）为：
 **这个插件等同于把服务器 Shell 交给能够访问 AstrBot WebUI 的人。**
 
 - 务必为 AstrBot WebUI 设置强密码，并尽量只在内网或 VPN 中开放。
-- 强烈建议配置 `allowed_users`，只允许可信的 WebUI 用户名。
+- WebUI 终端视图默认允许所有已登录用户访问；`/终端` 与 `terminal_shell_exec` 默认仅管理员可用。
 - 终端进程继承 AstrBot 进程的系统权限；不要以 root / Administrator 运行 AstrBot，除非你明确知道后果。
 - 终端会继承 AstrBot 进程的环境变量。若你的部署方式把 API Key、Token 等放在环境变量中，它们可能对终端用户可见；请使用专用低权限账户运行，或改用配置文件/密钥管理。
 - 不要把 AstrBot 直接暴露在公网；如需公网访问，请在反向代理层增加 HTTPS、认证、访问控制和速率限制。
@@ -250,7 +268,8 @@ astrbot_plugin_terminal_shell/
 ├─ core/
 │  ├─ crypto.py                # ECDH / HKDF / AES-GCM 会话与信封
 │  ├─ terminal.py              # PTY / ConPTY、输出 Hub、生命周期
-│  └─ storage.py               # 背景图片、界面设置的校验与持久化
+│  ├─ chat_shell.py            # /终端 与 LLM 使用的持久化 Shell
+│  └─ storage.py               # 背景、界面设置、加密会话快照
 ├─ views/terminal/
 │  ├─ index.html               # 插件可视化视图
 │  ├─ style.css                # 玻璃拟态 + 响应式 UI

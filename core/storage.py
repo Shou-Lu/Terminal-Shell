@@ -7,13 +7,17 @@ cleanup can find it.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
+import secrets
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ALLOWED_MIME = {
     "image/jpeg": (b"\xff\xd8\xff",),
@@ -232,3 +236,123 @@ class PreferenceStore:
                 return False
             except OSError as exc:
                 raise PreferenceError(f"删除界面设置失败：{exc}") from exc
+
+
+class SessionSnapshotStore:
+    """Encrypted at-rest snapshots of persistent chat shell output.
+
+    The key lives next to the snapshots in the plugin data directory.  This
+    protects against casual inspection / accidental plaintext backups; it is
+    not a substitute for full-disk encryption against someone who can read the
+    plugin data directory as the AstrBot process user.
+    """
+
+    MAGIC = b"TSS1"
+    AAD = b"terminal-shell-session-v1"
+    KEY_BYTES = 32
+    IV_BYTES = 12
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._key_path = self.root / ".session.key"
+        self._key = self._load_or_create_key()
+
+    def _load_or_create_key(self) -> bytes:
+        with self._lock:
+            try:
+                key = self._key_path.read_bytes()
+            except OSError:
+                key = b""
+            if len(key) != self.KEY_BYTES:
+                key = secrets.token_bytes(self.KEY_BYTES)
+                tmp = self._key_path.with_suffix(".key.tmp")
+                try:
+                    tmp.write_bytes(key)
+                    try:
+                        os.chmod(tmp, 0o600)
+                    except OSError:
+                        pass
+                    os.replace(tmp, self._key_path)
+                except OSError:
+                    try:
+                        tmp.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            try:
+                os.chmod(self._key_path, 0o600)
+            except OSError:
+                pass
+            return key
+
+    def _path(self, key: str) -> Path:
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+        return self.root / f"{digest}.bin"
+
+    def save(
+        self,
+        key: str,
+        history: bytes,
+        meta: dict[str, Any] | None = None,
+    ) -> bool:
+        """Encrypt and atomically persist one transcript snapshot."""
+        payload = {
+            "history": base64.b64encode(history[-96 * 1024 :]).decode("ascii"),
+            **(meta or {}),
+        }
+        plaintext = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        iv = secrets.token_bytes(self.IV_BYTES)
+        try:
+            ciphertext = AESGCM(self._key).encrypt(iv, plaintext, self.AAD)
+        except Exception:
+            return False
+        blob = self.MAGIC + iv + ciphertext
+        target = self._path(key)
+        tmp = target.with_suffix(".bin.tmp")
+        try:
+            tmp.write_bytes(blob)
+            os.replace(tmp, target)
+            return True
+        except OSError:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return False
+
+    def load(self, key: str) -> dict[str, Any] | None:
+        try:
+            blob = self._path(key).read_bytes()
+        except OSError:
+            return None
+        if len(blob) < len(self.MAGIC) + self.IV_BYTES + 16:
+            return None
+        if not blob.startswith(self.MAGIC):
+            return None
+        iv_start = len(self.MAGIC)
+        iv = blob[iv_start : iv_start + self.IV_BYTES]
+        ciphertext = blob[iv_start + self.IV_BYTES :]
+        try:
+            plaintext = AESGCM(self._key).decrypt(iv, ciphertext, self.AAD)
+            payload = json.loads(plaintext.decode("utf-8"))
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            history = base64.b64decode(payload.pop("history", ""), validate=True)
+        except Exception:
+            return None
+        payload["history"] = history
+        return payload
+
+    def delete(self, key: str) -> bool:
+        try:
+            self._path(key).unlink()
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+
