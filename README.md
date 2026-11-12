@@ -34,7 +34,8 @@ Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏�
 - **浏览器式多标签**：新建、拖动排序、双击重命名、中键关闭，每个标签一条独立 Shell。
 - **真实终端**：Linux / macOS 使用原生 PTY；Windows 使用 ConPTY（`pywinpty`），支持颜色、光标与交互式程序。
 - **自定义高斯泼溅背景**：上传任意图片，前端自动压缩并采样成高斯光点；内置默认星云背景。
-- **双向加密**：ECDH P-256 握手 → HKDF-SHA256 派生 → AES-256-GCM；请求、响应、SSE 每一帧都加密。
+- **加密终端**：ECDH P-256 握手 → HKDF-SHA256 派生 → AES-256-GCM；请求、响应、SSE 每一帧都加密。
+- **聊天 / LLM 调用**：管理员可用 `/终端 <命令>` 或 `terminal_shell_exec` 工具调用持久化 Shell，输出加密落盘。
 - **HTTP 环境可用**：HTTPS / localhost 使用浏览器原生 WebCrypto；普通 HTTP 自动切换到内置的 Noble 纯 JS 实现。
 - **会话恢复**：刷新页面后自动恢复同一浏览器标签页创建的终端和最近输出。
 - **移动端适配**：响应式布局，触屏设备提供 Esc、Tab、Ctrl+C、方向键等快捷按键。

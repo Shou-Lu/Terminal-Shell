@@ -290,6 +290,10 @@ class SessionSnapshotStore:
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
         return self.root / f"{digest}.bin"
 
+    def _aad(self, key: str) -> bytes:
+        digest = hashlib.sha256(key.encode("utf-8")).digest()
+        return self.AAD + digest
+
     def save(
         self,
         key: str,
@@ -304,7 +308,7 @@ class SessionSnapshotStore:
         plaintext = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         iv = secrets.token_bytes(self.IV_BYTES)
         try:
-            ciphertext = AESGCM(self._key).encrypt(iv, plaintext, self.AAD)
+            ciphertext = AESGCM(self._key).encrypt(iv, plaintext, self._aad(key))
         except Exception:
             return False
         blob = self.MAGIC + iv + ciphertext
@@ -334,7 +338,7 @@ class SessionSnapshotStore:
         iv = blob[iv_start : iv_start + self.IV_BYTES]
         ciphertext = blob[iv_start + self.IV_BYTES :]
         try:
-            plaintext = AESGCM(self._key).decrypt(iv, ciphertext, self.AAD)
+            plaintext = AESGCM(self._key).decrypt(iv, ciphertext, self._aad(key))
             payload = json.loads(plaintext.decode("utf-8"))
         except Exception:
             return None

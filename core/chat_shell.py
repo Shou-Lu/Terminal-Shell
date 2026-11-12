@@ -61,7 +61,7 @@ class PersistentChatShell:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    async def run(self, key: str, command: str) -> str:
+    async def run(self, key: str, command: str, limit: int | None = None) -> str:
         command = command.strip()
         if not command:
             return await self.tail(key, self.chat_output_chars)
@@ -146,7 +146,7 @@ class PersistentChatShell:
                 )
             if exited:
                 output += "\n[Shell 进程已退出，下次调用会自动重建]"
-            output = self._cap(output, self.max_output_chars)
+            output = self._cap(output, limit or self.max_output_chars)
             return output or "(无输出)"
 
     async def tail(self, key: str, limit: int | None = None) -> str:

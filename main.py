@@ -167,7 +167,11 @@ class TerminalShellPlugin(Star):
         key = self._shell_key(event)
         try:
             if command:
-                output = await self.chat_shell.run(key, command)
+                output = await self.chat_shell.run(
+                    key,
+                    command,
+                    limit=self.chat_shell.chat_output_chars,
+                )
             else:
                 output = await self.chat_shell.tail(
                     key, self.chat_shell.chat_output_chars
