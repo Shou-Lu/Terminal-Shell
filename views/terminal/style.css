@@ -14,7 +14,7 @@
   --danger: #ff4b5c;
   --ok: #00d2a8;
   --warn: #ffc46b;
-  --veil-opacity: 0.3;
+  --veil-opacity: 0.25;
   --bg-blur: 12px;
   --radius-lg: 18px;
   --radius-md: 13px;
@@ -63,14 +63,14 @@ body {
     linear-gradient(135deg, rgba(30, 30, 46, 0.92), rgba(15, 15, 25, 0.95)),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.055) 0px,
+      rgba(255, 255, 255, 0.09) 0px,
       rgba(255, 255, 255, 0.04) 1px,
       transparent 1px,
       transparent 40px
     ),
     repeating-linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.055) 0px,
+      rgba(255, 255, 255, 0.09) 0px,
       rgba(255, 255, 255, 0.04) 1px,
       transparent 1px,
       transparent 40px

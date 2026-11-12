@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import locale
 import os
 import secrets
 import shutil
@@ -28,6 +29,7 @@ IS_WINDOWS = os.name == "nt"
 HISTORY_BYTES = 48 * 1024
 MAX_INPUT_BYTES = 64 * 1024
 MAX_POLL_EVENTS = 200
+LOCALE_ENCODING = locale.getpreferredencoding(False) or "utf-8"
 
 
 class TerminalError(Exception):
@@ -202,6 +204,7 @@ class TerminalSession:
     _loop_thread_id: int | None = None
     _reader_thread: threading.Thread | None = None
     _stop_reader: threading.Event = field(default_factory=threading.Event)
+    _pipe_buffer: bytearray = field(default_factory=bytearray)
     _closed: bool = False
     _finished: bool = False
     _notified: bool = False
@@ -362,8 +365,54 @@ class TerminalSession:
                 break
             if not chunk:
                 break
-            self._emit_threadsafe(chunk)
+            self._pipe_buffer.extend(chunk)
+            self._flush_pipe_lines(final=False)
+            # A shell prompt has no trailing newline. Emit buffered UTF-8
+            # immediately so the prompt is visible before the user types;
+            # invalid/OEM-code-page partial lines stay buffered until \n.
+            if self._pipe_buffer:
+                try:
+                    text = bytes(self._pipe_buffer).decode("utf-8")
+                except UnicodeDecodeError:
+                    pass
+                else:
+                    self._pipe_buffer.clear()
+                    self._emit_threadsafe(text.encode("utf-8"))
+        self._flush_pipe_lines(final=True)
         self._finish_from_thread()
+
+    def _flush_pipe_lines(self, final: bool) -> None:
+        """Convert mixed Windows pipe encodings to UTF-8 line by line.
+
+        Windows PowerShell writes its startup warning in the OEM code page but
+        console input/output as UTF-8. Decoding the whole stream with one codec
+        therefore produces mojibake. Splitting on newlines lets each line use
+        the first codec that decodes cleanly.
+        """
+        while True:
+            index = self._pipe_buffer.find(b"\n")
+            if index < 0:
+                break
+            line = bytes(self._pipe_buffer[:index])
+            del self._pipe_buffer[: index + 1]
+            self._emit_threadsafe(self._decode_pipe_line(line))
+        if final and self._pipe_buffer:
+            line = bytes(self._pipe_buffer)
+            self._pipe_buffer.clear()
+            self._emit_threadsafe(self._decode_pipe_line(line))
+
+    @staticmethod
+    def _decode_pipe_line(raw: bytes) -> bytes:
+        raw = raw.rstrip(b"\r")
+        for encoding in ("utf-8", LOCALE_ENCODING, "gb18030"):
+            try:
+                text = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            text = raw.decode("utf-8", "replace")
+        return (text + "\r\n").encode("utf-8")
 
     # ------------------------------------------------------------------
     # Output / lifecycle notifications

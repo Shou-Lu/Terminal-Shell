@@ -2,7 +2,7 @@ name: astrbot_plugin_terminal_shell
 display_name: Terminal Shell终端
 short_desc: 深色毛玻璃多标签网页 Shell，支持自定义模糊背景与文件管理
 desc: 在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义图片背景与模糊度、文件管理页、ECDH + AES-256-GCM 加密传输，以及 /终端 管理员指令与 LLM Shell 工具。
-version: v1.0.0
+version: v1.0.1
 author: Shou-Lu
 repo: https://github.com/Shou-Lu/Terminal-Shell
 icon: logo.png

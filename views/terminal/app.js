@@ -42,7 +42,7 @@ const OWNER_KEY = "terminal-shell:owner";
 
 const DEFAULT_SETTINGS = {
   blur: 12,
-  veil: 0.3,
+  veil: 0.25,
   fontSize: 14,
 };
 
