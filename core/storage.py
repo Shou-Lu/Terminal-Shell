@@ -355,4 +355,3 @@ class SessionSnapshotStore:
             return False
         except OSError:
             return False
-
