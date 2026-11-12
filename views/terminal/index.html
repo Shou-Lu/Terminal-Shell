@@ -10,8 +10,10 @@
     <title>Terminal Shell终端</title>
     <link rel="stylesheet" href="./vendor/xterm.css" />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./files.css" />
+    <link rel="stylesheet" href="./status.css" />
   </head>
-  <body>
+  <body data-view="terminal">
     <div id="custom-bg" class="custom-bg" aria-hidden="true"></div>
     <div class="bg-veil" aria-hidden="true"></div>
 
@@ -26,6 +28,18 @@
             <span>终端</span>
           </div>
         </div>
+
+        <nav class="view-tabs" id="view-tabs" role="tablist" aria-label="功能页面">
+          <button class="view-tab active" type="button" data-view="terminal" role="tab" aria-selected="true">
+            终端
+          </button>
+          <button class="view-tab" type="button" data-view="files" role="tab" aria-selected="false">
+            文件
+          </button>
+          <button class="view-tab" type="button" data-view="status" role="tab" aria-selected="false">
+            状态
+          </button>
+        </nav>
 
         <div
           class="tabstrip"
@@ -73,7 +87,7 @@
         </div>
       </header>
 
-      <main class="workspace">
+      <main class="workspace" id="workspace">
         <div class="terminals" id="terminals"></div>
         <div class="empty-state hidden" id="empty-state">
           <div class="empty-orb" aria-hidden="true"></div>
@@ -85,6 +99,130 @@
           </button>
         </div>
       </main>
+
+      <section class="files-view hidden" id="files-view" aria-label="文件管理">
+        <div class="fm-app">
+          <div class="fm-toolbar">
+            <button class="fm-btn ghost small" id="fm-up" type="button">↑ 上级</button>
+            <nav class="fm-breadcrumb" id="fm-breadcrumb" aria-label="路径"></nav>
+            <span class="fm-root" id="fm-root"></span>
+            <div class="fm-actions">
+              <button class="fm-btn ghost" id="fm-refresh" type="button">刷新</button>
+              <button class="fm-btn ghost" id="fm-mkdir" type="button">新建文件夹</button>
+              <label class="fm-btn primary" for="fm-file-input">
+                上传文件
+                <input id="fm-file-input" type="file" multiple hidden />
+              </label>
+              <span class="fm-badge" id="fm-crypto-badge"><i></i>AES-256-GCM</span>
+            </div>
+          </div>
+
+          <div class="fm-main">
+            <div class="fm-list-head" aria-hidden="true">
+              <span>名称</span>
+              <span>大小</span>
+              <span>修改时间</span>
+              <span>操作</span>
+            </div>
+            <div class="fm-list" id="fm-file-list"></div>
+            <div class="fm-empty hidden" id="fm-empty-state">
+              <div class="fm-empty-icon">∅</div>
+              <p>这个目录是空的</p>
+              <small>可以上传文件或新建文件夹</small>
+            </div>
+          </div>
+
+          <div class="fm-footer">
+            <span id="fm-status">正在连接加密通道…</span>
+            <span class="fm-spacer"></span>
+            <span id="fm-mode">ECDH P-256 · AES-256-GCM</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-view hidden" id="status-view" aria-label="设备状态">
+        <div class="status-head">
+          <div>
+            <p class="eyebrow">SYSTEM STATUS</p>
+            <h2>设备状态</h2>
+            <p>后端钩子每 2 秒采样一次系统运行时长、CPU、内存与负载，并以函数图呈现趋势。</p>
+          </div>
+          <div class="status-head-actions">
+            <span class="status-live" id="status-live"><i></i>实时采样</span>
+            <span class="status-updated" id="status-updated">等待连接…</span>
+            <button class="ghost-btn compact" id="status-refresh" type="button">刷新</button>
+          </div>
+        </div>
+
+        <div class="status-scroll" id="status-scroll">
+          <div class="status-metrics">
+            <article class="status-card">
+              <span class="status-card-label">CPU 使用率 <i></i></span>
+              <strong class="status-card-value" id="stat-cpu">--%</strong>
+              <span class="status-card-sub" id="stat-cpu-sub">系统平均</span>
+              <canvas class="status-spark" id="spark-cpu" aria-hidden="true"></canvas>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">内存占用 <i></i></span>
+              <strong class="status-card-value" id="stat-mem">--%</strong>
+              <span class="status-card-sub" id="stat-mem-sub">-- / --</span>
+              <canvas class="status-spark" id="spark-mem" aria-hidden="true"></canvas>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">系统运行时长 <i></i></span>
+              <strong class="status-card-value small" id="stat-uptime">--:--:--</strong>
+              <span class="status-card-sub" id="stat-uptime-sub">启动于 —</span>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">磁盘占用 <i></i></span>
+              <strong class="status-card-value" id="stat-disk">--%</strong>
+              <span class="status-card-sub" id="stat-disk-sub">-- / --</span>
+              <div class="status-bar"><span id="stat-disk-bar"></span></div>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">系统负载 <i></i></span>
+              <strong class="status-card-value" id="stat-load">--</strong>
+              <span class="status-card-sub" id="stat-load-sub">1 分钟平均负载</span>
+              <canvas class="status-spark" id="spark-load" aria-hidden="true"></canvas>
+            </article>
+          </div>
+
+          <div class="status-grid">
+            <section class="status-panel">
+              <div class="status-panel-head">
+                <h3>设备信息</h3>
+                <span id="status-host"></span>
+              </div>
+              <div class="status-rows" id="status-device-info"></div>
+            </section>
+            <section class="status-panel">
+              <div class="status-panel-head">
+                <h3>资源与进程</h3>
+                <span>ENCRYPTED</span>
+              </div>
+              <div class="status-rows" id="status-resource-info"></div>
+            </section>
+          </div>
+
+          <section class="status-panel status-chart-panel">
+            <div class="status-panel-head">
+              <h3>CPU / 内存函数图</h3>
+              <div class="status-legend">
+                <span class="status-legend-item" style="--legend-color: #00d2ff">
+                  <i></i><span id="legend-cpu">CPU --</span>
+                </span>
+                <span class="status-legend-item" style="--legend-color: #ff6b9d">
+                  <i></i><span id="legend-mem">内存 --</span>
+                </span>
+                <span class="status-legend-item" style="--legend-color: #ffc46b">
+                  <i></i><span id="legend-load">负载 --</span>
+                </span>
+              </div>
+            </div>
+            <canvas class="status-chart" id="status-chart" aria-label="CPU 与内存使用率趋势图"></canvas>
+          </section>
+        </div>
+      </section>
 
       <footer class="statusbar">
         <span class="status-connection" id="status-connection">
@@ -169,8 +307,20 @@
 
         <div class="help-grid">
           <section>
+            <h3>一个页面，三个工作区</h3>
+            <p>标题栏左侧的「终端 / 文件 / 状态」可以随时切换。所有功能共用同一条加密通道，不需要打开多个插件页面。</p>
+          </section>
+          <section>
             <h3>多标签终端</h3>
             <p>点击标题栏的 <kbd>+</kbd> 新建终端。每个标签都是独立进程，可拖动排序、双击标题重命名、中键关闭。</p>
+          </section>
+          <section>
+            <h3>文件管理</h3>
+            <p>在「文件」页浏览、上传、下载、预览和编辑文件，也可以新建文件夹、重命名或删除。访问范围受插件配置中的文件管理根目录限制。</p>
+          </section>
+          <section>
+            <h3>设备状态</h3>
+            <p>「状态」页由后端钩子定时采样系统运行时长、CPU、内存、负载与磁盘占用，并绘制成函数图。数据同样经过加密后回传。</p>
           </section>
           <section>
             <h3>快捷键</h3>
@@ -186,14 +336,14 @@
             <h3>加密通道</h3>
             <p>
               页面加载时通过 ECDH P-256 生成临时会话密钥，经 HKDF-SHA256 派生 AES-256-GCM 密钥。
-              输入、输出、终端列表、背景图片全部以密文传输；每个数据包的附加认证数据都绑定到具体操作，防止跨接口重放。
+              输入、输出、终端列表、文件内容、背景图片和设备状态全部以密文传输；每个数据包的附加认证数据都绑定到具体操作，防止跨接口重放。
             </p>
           </section>
           <section>
             <h3>安全提示</h3>
             <p>
               这是一个拥有 Shell 执行权限的管理工具。请只部署在可信网络中，并为 AstrBot WebUI 设置强密码。
-              可在插件配置中用 <code>allowed_users</code> 限制可访问的 WebUI 用户名。
+              文件工作区默认开放给所有已登录 WebUI 用户，如不需要请把根目录设置为专用目录或通过反向代理限制访问。
             </p>
           </section>
           <section>
@@ -216,7 +366,34 @@
       </div>
     </div>
 
+    <div class="fm-modal hidden" id="fm-modal" role="dialog" aria-modal="true" aria-labelledby="fm-modal-title">
+      <div class="fm-modal-card">
+        <h2 id="fm-modal-title">操作</h2>
+        <p class="fm-modal-message" id="fm-modal-message"></p>
+        <input class="fm-input hidden" id="fm-modal-input" type="text" autocomplete="off" />
+        <div class="fm-modal-actions">
+          <button class="fm-btn ghost" id="fm-modal-cancel" type="button">取消</button>
+          <button class="fm-btn primary" id="fm-modal-ok" type="button">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fm-modal hidden" id="fm-preview-modal" role="dialog" aria-modal="true" aria-labelledby="fm-preview-title">
+      <div class="fm-modal-card wide">
+        <div class="fm-preview-head">
+          <h2 id="fm-preview-title">预览</h2>
+          <button class="fm-icon-btn" id="fm-preview-close" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="fm-preview-body" id="fm-preview-body"></div>
+        <div class="fm-modal-actions">
+          <button class="fm-btn ghost" id="fm-preview-download" type="button">下载</button>
+          <button class="fm-btn primary hidden" id="fm-preview-save" type="button">保存</button>
+        </div>
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="fm-toast" id="fm-toast" role="status" aria-live="polite"></div>
 
     <script src="./vendor/xterm.js"></script>
     <script src="./vendor/addon-fit.js"></script>

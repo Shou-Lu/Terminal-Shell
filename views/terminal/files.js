@@ -1,37 +1,6 @@
-import {
-  SecureChannel,
-  b64encode,
-  b64decode,
-} from "./crypto.js";
+import { b64encode, b64decode } from "./crypto.js";
 
 const $ = (id) => document.getElementById(id);
-
-const elements = {
-  fileList: $("file-list"),
-  empty: $("empty-state"),
-  breadcrumb: $("breadcrumb"),
-  rootLabel: $("root-label"),
-  status: $("status"),
-  mode: $("mode-label"),
-  cryptoBadge: $("crypto-badge"),
-  refresh: $("refresh"),
-  mkdir: $("mkdir"),
-  up: $("up"),
-  fileInput: $("file-input"),
-  modal: $("modal"),
-  modalTitle: $("modal-title"),
-  modalMessage: $("modal-message"),
-  modalInput: $("modal-input"),
-  modalCancel: $("modal-cancel"),
-  modalOk: $("modal-ok"),
-  previewModal: $("preview-modal"),
-  previewTitle: $("preview-title"),
-  previewBody: $("preview-body"),
-  previewClose: $("preview-close"),
-  previewDownload: $("preview-download"),
-  previewSave: $("preview-save"),
-  toast: $("toast"),
-};
 
 const state = {
   path: "",
@@ -42,58 +11,63 @@ const state = {
   textEditor: null,
   toastTimer: null,
   modalResolve: null,
+  bound: false,
+  channel: null,
+  loaded: false,
+  loading: false,
 };
 
-let bridge = null;
-let channel = null;
+const elements = {
+  fileList: $("fm-file-list"),
+  empty: $("fm-empty-state"),
+  breadcrumb: $("fm-breadcrumb"),
+  rootLabel: $("fm-root"),
+  status: $("fm-status"),
+  mode: $("fm-mode"),
+  cryptoBadge: $("fm-crypto-badge"),
+  refresh: $("fm-refresh"),
+  mkdir: $("fm-mkdir"),
+  up: $("fm-up"),
+  fileInput: $("fm-file-input"),
+  modal: $("fm-modal"),
+  modalTitle: $("fm-modal-title"),
+  modalMessage: $("fm-modal-message"),
+  modalInput: $("fm-modal-input"),
+  modalCancel: $("fm-modal-cancel"),
+  modalOk: $("fm-modal-ok"),
+  previewModal: $("fm-preview-modal"),
+  previewTitle: $("fm-preview-title"),
+  previewBody: $("fm-preview-body"),
+  previewClose: $("fm-preview-close"),
+  previewDownload: $("fm-preview-download"),
+  previewSave: $("fm-preview-save"),
+  toast: $("fm-toast"),
+};
 
-init().catch((error) => {
-  console.error(error);
-  toast(error?.message || "文件管理初始化失败", true);
-  setStatus("初始化失败", true);
-});
+let controller = null;
 
-async function init() {
-  bridge = await waitForBridge();
-  if (!bridge) {
-    toast("未找到 AstrBot 插件桥接，请从插件详情页打开。", true);
-    setStatus("未连接 AstrBot", true);
-    return;
-  }
-  let context = null;
-  try {
-    context = bridge.ready ? await bridge.ready() : null;
-  } catch (error) {
-    console.warn(error);
-  }
-  applyTheme(context?.isDark !== false);
-  if (typeof bridge.onContext === "function") {
-    bridge.onContext((next) => applyTheme(next?.isDark !== false));
-  }
-  if (typeof bridge.t === "function") {
-    document.title = bridge.t("views.files.title", "文件管理");
-  }
-
+export function initFilesPanel(channel) {
+  if (controller) return controller;
+  state.channel = channel;
   bindUi();
-  channel = new SecureChannel(bridge);
-  setStatus("正在协商加密密钥…");
-  await channel.ready();
-  updateBadge(true);
-  setStatus("加密通道已连接");
-  await load("");
+  controller = {
+    activate,
+  };
+  return controller;
 }
 
-async function waitForBridge() {
-  for (let i = 0; i < 140; i += 1) {
-    const candidate =
-      window.AstrBotPluginView || window.AstrBotPluginPage || null;
-    if (candidate) return candidate;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+async function activate() {
+  if (state.loading) return;
+  if (!state.loaded) {
+    setStatus("正在读取目录…");
+    await load("");
+    state.loaded = true;
   }
-  return null;
 }
 
 function bindUi() {
+  if (state.bound) return;
+  state.bound = true;
   elements.refresh.addEventListener("click", () => load(state.path));
   elements.mkdir.addEventListener("click", createFolder);
   elements.up.addEventListener("click", () => {
@@ -128,12 +102,11 @@ function bindUi() {
       closeModal(null);
     }
   });
-  window.addEventListener("resize", () => {});
 }
 
 async function api(action, payload) {
   try {
-    return await channel.post(action, payload);
+    return await state.channel.post(action, payload);
   } catch (error) {
     if (/加密|密文|会话|session|crypto/i.test(String(error?.message || ""))) {
       updateBadge(false);
@@ -143,6 +116,7 @@ async function api(action, payload) {
 }
 
 async function load(path) {
+  state.loading = true;
   setStatus("正在读取目录…");
   try {
     const data = await api("files/list", { path: path || "" });
@@ -160,6 +134,8 @@ async function load(path) {
     console.error(error);
     setStatus(error?.message || "读取目录失败", true);
     toast(error?.message || "读取目录失败", true);
+  } finally {
+    state.loading = false;
   }
 }
 
@@ -406,7 +382,11 @@ async function openPreview(entry) {
       const image = document.createElement("img");
       image.src = url;
       image.alt = data.name || entry.name;
-      image.addEventListener("load", () => setTimeout(() => URL.revokeObjectURL(url), 1000), { once: true });
+      image.addEventListener(
+        "load",
+        () => setTimeout(() => URL.revokeObjectURL(url), 1000),
+        { once: true },
+      );
       elements.previewBody.append(image);
     } else if (isTextMime(mime) || isTextName(data.name)) {
       const textarea = document.createElement("textarea");
@@ -433,7 +413,9 @@ async function savePreview() {
   try {
     const bytes = new TextEncoder().encode(state.textEditor.value);
     if (bytes.length > state.maxBytes) {
-      throw new Error(`文件超过 ${Math.round(state.maxBytes / 1024 / 1024)} MB 限制`);
+      throw new Error(
+        `文件超过 ${Math.round(state.maxBytes / 1024 / 1024)} MB 限制`,
+      );
     }
     await api("files/write", {
       path: state.preview.path,
@@ -472,7 +454,6 @@ function askText(title, message, value, confirmText) {
 }
 
 function askConfirm(title, message, confirmText) {
-  state.modalResolve = null;
   elements.modalTitle.textContent = title;
   elements.modalMessage.textContent = message;
   elements.modalInput.classList.add("hidden");
@@ -501,10 +482,6 @@ function closeModal(value) {
     state.modalResolve = null;
     resolver(value);
   }
-}
-
-function applyTheme(isDark) {
-  document.documentElement.dataset.theme = isDark ? "dark" : "light";
 }
 
 function updateBadge(ok) {

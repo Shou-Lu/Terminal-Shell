@@ -6,7 +6,7 @@
 
 **在 AstrBot WebUI 里打开一个真正属于你的 Shell。**
 
-多标签终端 · 自定义模糊背景 · 文件管理 · ECDH + AES-256-GCM 双向加密
+多标签终端 · 文件管理 · 设备状态图表 · 自定义模糊背景 · ECDH + AES-256-GCM 双向加密
 
 [![AstrBot](https://img.shields.io/badge/AstrBot-%3E%3D4.17-6ee7ff)](https://astrbot.app)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
@@ -23,8 +23,11 @@
 Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏览器标签页的方式管理多条真实 Shell 进程。
 它不依赖第三方终端服务，直接由 AstrBot 后端创建 PTY / ConPTY，把输入输出通过加密通道实时回传。
 
+所有功能都集中在**同一个插件页面**里：标题栏左侧的「终端 / 文件 / 状态」切换三个工作区，
+共用同一条加密通道，不需要在多个插件视图之间来回跳转。
+
 整体界面使用与 SaveBili 相同的深色毛玻璃 + 网格背景。你可以上传自己的图片作为背景，
-并通过模糊度和遮罩滑杆控制可读性；图片、终端列表、输入、输出全部走应用层加密，
+并通过模糊度和遮罩滑杆控制可读性；图片、终端列表、输入、输出、文件内容和设备状态全部走应用层加密，
 即使 AstrBot 部署在普通 HTTP 局域网地址上也能保持端到端密文传输。
 
 > 背景配色和深色网格风格参考 [SaveBili](https://github.com/SATA-F5/SaveBili)（AGPL-3.0）。
@@ -40,7 +43,8 @@ Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏�
 - **聊天 / LLM 调用**：管理员可用 `/终端 <命令>` 或 `terminal_shell_exec` 工具调用持久化 Shell，输出加密落盘。
 - **HTTP 环境可用**：HTTPS / localhost 使用浏览器原生 WebCrypto；普通 HTTP 自动切换到内置的 Noble 纯 JS 实现。
 - **会话恢复**：刷新页面后自动恢复同一浏览器标签页创建的终端和最近输出。
-- **文件管理**：独立页面，支持浏览、上传、下载、预览、编辑文本、重命名、新建文件夹和删除文件。
+- **文件管理**：同一页面的「文件」工作区，支持浏览、上传、下载、预览、编辑文本、重命名、新建文件夹和删除文件。
+- **设备状态**：后端钩子每 2 秒采样系统运行时长、CPU、内存、磁盘与负载，仪表盘与函数图实时展示趋势。
 - **移动端适配**：响应式布局，触屏设备提供 Esc、Tab、Ctrl+C、方向键等快捷按键。
 - **可调外观**：背景模糊、界面遮罩、终端字号均可实时调节并持久化。
 - **访问控制**：WebUI 视图默认允许所有已登录用户；`/终端` 与 LLM 工具默认仅管理员可用，并受 AstrBot 指令权限管理约束。
@@ -68,7 +72,7 @@ pywinpty>=2.0.13; sys_platform == "win32"
 ### 打开终端
 
 插件页 → **Terminal Shell终端** → 可视化视图 **Terminal Shell终端**。
-插件详情页还会提供 **文件管理** 视图，用于浏览、上传、下载和编辑文件。
+页面顶部的「终端 / 文件 / 状态」标签可以切换到文件管理或设备状态，全部功能都在这一页完成。
 
 > 视图运行在受限 iframe 中，必须从 AstrBot 插件详情页打开，不能直接访问 HTML 文件。
 > WebUI 视图默认允许所有已登录的 AstrBot 用户访问；请务必为 WebUI 设置强密码。
@@ -82,7 +86,7 @@ pywinpty>=2.0.13; sys_platform == "win32"
 | `enabled` | bool | `true` | 关闭后前端无法建立加密会话或创建终端。 |
 | `shell` | string | `""` | 自定义 Shell 路径。留空自动选择。 |
 | `cwd` | string | `""` | 终端启动目录，留空为用户主目录。 |
-| `file_manager_root` | string | `""` | 文件管理页的根目录，留空为用户主目录。 |
+| `file_manager_root` | string | `""` | 文件管理工作区的根目录，留空为用户主目录。 |
 | `file_manager_max_mb` | int | `8` | 文件管理单文件大小上限。 |
 | `max_sessions` | int | `8` | 每个用户同时存活的终端上限。 |
 | `idle_timeout` | int | `1800` | 无输入输出的空闲回收时间（秒）。 |
@@ -157,7 +161,7 @@ data/plugin_data/<插件目录名>/backgrounds/
 
 ### 文件管理
 
-插件提供独立视图「文件管理」，可以：
+在页面顶部切换到「文件」工作区，可以：
 
 - 浏览目录、面包屑跳转、返回上级
 - 上传文件（加密后写入）
@@ -167,7 +171,19 @@ data/plugin_data/<插件目录名>/backgrounds/
 - 单文件大小受 `file_manager_max_mb` 限制
 - 只能访问 `file_manager_root` 配置的根目录，无法通过 `..` 或符号链接逃逸
 
-默认根目录是运行 AstrBot 的用户主目录。文件管理页与 WebUI 终端一样，对所有已登录 WebUI 用户开放；如果 WebUI 不是只对可信用户开放，请谨慎使用或把根目录设置为专用目录。
+默认根目录是运行 AstrBot 的用户主目录。文件管理与其他工作区一样，对所有已登录 WebUI 用户开放；如果 WebUI 不是只对可信用户开放，请谨慎使用或把根目录设置为专用目录。
+
+### 设备状态
+
+切换到「状态」工作区可以查看设备的实时运行情况：
+
+- **系统运行时长**：后端 `SystemMonitor` 定时采样系统启动时长，前端按秒递增显示
+- **设备信息**：主机名、操作系统、内核、架构、CPU 型号与核心数、Python / AstrBot 版本
+- **资源仪表盘**：CPU、内存、磁盘占用、系统负载与进程信息
+- **函数图**：最近 90 个采样点的 CPU / 内存折线图，以及各指标的小型趋势图
+
+采样由后端异步任务完成（默认 2 秒一次），数据通过同一条加密通道回传，不会写入磁盘。
+若安装了 `psutil` 会优先使用；没有时自动回退到各平台的标准库实现（`/proc`、Windows API、`vm_stat` 等）。
 
 ### 持久化数据
 
@@ -250,12 +266,12 @@ AES-GCM 的附加认证数据（AAD）为：
 
 - 务必为 AstrBot WebUI 设置强密码，并尽量只在内网或 VPN 中开放。
 - WebUI 终端视图默认允许所有已登录用户访问；`/终端` 与 `terminal_shell_exec` 默认仅管理员可用。
-- 文件管理页同样对所有已登录 WebUI 用户开放，且默认根目录是运行 AstrBot 的用户主目录；如不需要请将 `file_manager_root` 指向专用目录，或通过反向代理限制访问。
+- 文件管理与设备状态工作区同样对所有已登录 WebUI 用户开放，且默认根目录是运行 AstrBot 的用户主目录；如不需要请将 `file_manager_root` 指向专用目录，或通过反向代理限制访问。
 - 终端进程继承 AstrBot 进程的系统权限；不要以 root / Administrator 运行 AstrBot，除非你明确知道后果。
 - 终端会继承 AstrBot 进程的环境变量。若你的部署方式把 API Key、Token 等放在环境变量中，它们可能对终端用户可见；请使用专用低权限账户运行，或改用配置文件/密钥管理。
 - 不要把 AstrBot 直接暴露在公网；如需公网访问，请在反向代理层增加 HTTPS、认证、访问控制和速率限制。
 - 背景图片会保存在插件数据目录中，请自行做好磁盘与备份权限管理。
-- 文件管理页可以读取/修改 `file_manager_root` 下的文件，请合理设置该目录并做好备份。
+- 文件管理工作区可以读取/修改 `file_manager_root` 下的文件，请合理设置该目录并做好备份。
 - 发现异常加密状态（标题栏显示「加密异常」）时，请刷新页面；不要忽略持续的解密失败。
 - 本插件不会记录终端输入输出到日志；但终端中运行的命令可能自行写入日志或历史文件。
 
@@ -295,6 +311,7 @@ AES-GCM 的附加认证数据（AAD）为：
 | `files/mkdir` | POST | 新建目录 |
 | `files/delete` | POST | 删除文件/目录 |
 | `files/rename` | POST | 重命名 |
+| `system/status` | POST | 系统状态、设备信息与指标历史 |
 
 ## 目录结构
 
@@ -306,18 +323,16 @@ astrbot_plugin_terminal_shell/
 │  ├─ terminal.py              # PTY / ConPTY、输出 Hub、生命周期
 │  ├─ chat_shell.py            # /终端 与 LLM 使用的持久化 Shell
 │  ├─ files.py                 # 文件管理安全根目录与读写操作
+│  ├─ system.py                # 系统状态采样与设备信息
 │  └─ storage.py               # 背景、界面设置、加密会话快照
 ├─ views/terminal/
-│  ├─ index.html               # 终端视图
+│  ├─ index.html               # 单页三工作区（终端 / 文件 / 状态）
 │  ├─ style.css                # SaveBili 风深色网格 + 毛玻璃
-│  ├─ app.js                   # 多标签、输入输出、背景、快捷键
+│  ├─ app.js                   # 多标签、输入输出、背景、工作区切换
+│  ├─ files.js / files.css     # 文件管理面板
+│  ├─ status.js / status.css   # 设备状态仪表盘与 Canvas 函数图
 │  ├─ crypto.js                # WebCrypto + Noble 双后端
 │  └─ vendor/                  # xterm.js、Noble（含许可证）
-├─ views/files/
-│  ├─ index.html               # 文件管理视图
-│  ├─ style.css
-│  ├─ app.js
-│  └─ crypto.js
 ├─ .astrbot-plugin/i18n/       # 插件 / 配置 / 视图国际化
 ├─ _conf_schema.json
 ├─ metadata.yaml

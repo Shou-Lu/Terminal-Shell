@@ -36,6 +36,7 @@ from .core.storage import (
     PreferenceStore,
     SessionSnapshotStore,
 )
+from .core.system import SystemMonitor
 from .core.terminal import TerminalError, TerminalManager
 
 PLUGIN_NAME = "astrbot_plugin_terminal_shell"
@@ -95,6 +96,7 @@ class TerminalShellPlugin(Star):
             * 1024
             * 1024,
         )
+        self.monitor = SystemMonitor(interval=2.0, points=90)
 
         self._register_web_apis()
 
@@ -293,6 +295,12 @@ class TerminalShellPlugin(Star):
             ("files/mkdir", self.api_files_mkdir, ["POST"], "Create directory"),
             ("files/delete", self.api_files_delete, ["POST"], "Delete file"),
             ("files/rename", self.api_files_rename, ["POST"], "Rename file"),
+            (
+                "system/status",
+                self.api_system_status,
+                ["POST"],
+                "System status and metric history",
+            ),
         ]
         for route, handler, methods, desc in routes:
             for prefix in ROUTE_PREFIXES:
@@ -751,10 +759,28 @@ class TerminalShellPlugin(Star):
         )
 
     # ------------------------------------------------------------------
+    # System status
+    # ------------------------------------------------------------------
+    async def api_system_status(self):
+        payload, session, error = await self._open("system/status")
+        if error is not None:
+            return error
+        assert session is not None
+        try:
+            data = await asyncio.to_thread(self.monitor.status)
+        except Exception:
+            logger.exception("Terminal Shell failed to read system status")
+            return error_response("读取设备状态失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "system/status", data)
+        )
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
     async def initialize(self):
         self.manager.start_reaper()
+        await self.monitor.start()
         logger.info(
             "Terminal Shell 已启动：视图 views/%s，加密会话 TTL %s 秒",
             VIEW_NAME,
@@ -766,6 +792,10 @@ class TerminalShellPlugin(Star):
             await self.chat_shell.close()
         except Exception:
             logger.exception("Terminal Shell failed to flush chat shell snapshots")
+        try:
+            await self.monitor.stop()
+        except Exception:
+            logger.exception("Terminal Shell failed to stop system monitor")
         await self.manager.shutdown()
         self.cipher.clear()
         logger.info("Terminal Shell 已停止，所有终端已关闭")

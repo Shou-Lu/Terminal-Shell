@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Terminal Shell终端",
-    "short_desc": "深色毛玻璃多标签网页 Shell，支持自定义模糊背景与文件管理",
-    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义图片背景与模糊度、文件管理页、ECDH + AES-256-GCM 加密传输，以及 /终端 管理员指令与 LLM Shell 工具。"
+    "short_desc": "深色毛玻璃单页网页 Shell，集成多标签终端、文件管理与设备状态图表",
+    "desc": "在 AstrBot WebUI 中以一个页面提供完整运维面板：多标签终端、文件管理、设备状态函数图、自定义模糊背景、ECDH + AES-256-GCM 加密传输，以及 /终端 管理员指令与 LLM Shell 工具。"
   },
   "config": {
     "enabled": {
@@ -19,7 +19,7 @@
     },
     "file_manager_root": {
       "description": "文件管理根目录",
-      "hint": "文件管理页只能浏览此目录下的内容。留空使用当前用户主目录。"
+      "hint": "文件管理工作区只能浏览此目录下的内容。留空使用当前用户主目录。"
     },
     "file_manager_max_mb": {
       "description": "文件管理单文件上限（MB）",
@@ -49,22 +49,15 @@
   "views": {
     "terminal": {
       "title": "Terminal Shell终端",
-      "description": "多标签网页 Shell，支持自定义模糊背景与双向加密传输。",
+      "description": "单页运维面板：多标签终端、文件管理与设备状态图表，全部通过加密通道传输。",
       "newTab": "新建终端",
       "background": "背景",
       "help": "帮助",
       "apply": "应用背景",
-      "reset": "恢复默认"
-    },
-    "files": {
-      "title": "文件管理",
-      "description": "浏览、上传、下载、重命名和删除文件管理根目录下的文件。",
-      "upload": "上传文件",
-      "newFolder": "新建文件夹",
-      "rename": "重命名",
-      "delete": "删除",
-      "download": "下载",
-      "refresh": "刷新"
+      "reset": "恢复默认",
+      "terminal": "终端",
+      "files": "文件",
+      "status": "状态"
     }
   }
 }

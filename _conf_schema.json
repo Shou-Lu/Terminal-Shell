@@ -20,7 +20,7 @@
   "file_manager_root": {
     "description": "文件管理根目录",
     "type": "string",
-    "hint": "文件管理页只能浏览此目录下的内容。留空使用当前用户主目录。",
+    "hint": "文件管理工作区只能浏览此目录下的内容。留空使用当前用户主目录。",
     "default": ""
   },
   "file_manager_max_mb": {

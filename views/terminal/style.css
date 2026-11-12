@@ -16,6 +16,13 @@
   --warn: #ffc46b;
   --veil-opacity: 0.25;
   --bg-blur: 12px;
+  --primary: #00aeec;
+  --primary-light: #00d2ff;
+  --primary-dark: #0072ff;
+  --glass: rgba(30, 30, 46, 0.55);
+  --glass-strong: rgba(24, 24, 38, 0.92);
+  --radius: 16px;
+  --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   --radius-lg: 18px;
   --radius-md: 13px;
   --radius-sm: 9px;
@@ -38,6 +45,8 @@
   --danger: #d92d4b;
   --ok: #0f9f6e;
   --warn: #b87511;
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(250, 252, 255, 0.96);
 }
 
 * {
@@ -1241,6 +1250,66 @@ kbd {
 
 .hidden {
   display: none !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* View switch (terminal / files / status)                            */
+/* ------------------------------------------------------------------ */
+.view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.view-tab {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  transition: 140ms ease;
+  white-space: nowrap;
+}
+
+.view-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.view-tab.active {
+  color: #04121c;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+  box-shadow: 0 6px 18px rgba(0, 174, 236, 0.28);
+}
+
+body[data-view="files"] .tabstrip,
+body[data-view="files"] .new-tab,
+body[data-view="status"] .tabstrip,
+body[data-view="status"] .new-tab {
+  display: none;
+}
+
+.files-view,
+.status-view {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.files-view > .fm-app {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* ------------------------------------------------------------------ */

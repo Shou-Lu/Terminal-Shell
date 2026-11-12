@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Terminal Shell",
-    "short_desc": "Dark glass multi-tab web shell with custom blurred backgrounds and file manager",
-    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, custom blurred image backgrounds, a file manager, ECDH + AES-256-GCM encrypted transport, an admin-only /terminal command and an LLM shell tool."
+    "short_desc": "Dark glass single-page web shell with terminal, file manager and system status charts",
+    "desc": "A complete single-page ops panel in AstrBot WebUI: multi-tab terminal, file manager, system status charts, custom blurred backgrounds, ECDH + AES-256-GCM encrypted transport, an admin-only /terminal command and an LLM shell tool."
   },
   "config": {
     "enabled": {
@@ -49,22 +49,15 @@
   "views": {
     "terminal": {
       "title": "Terminal Shell",
-      "description": "Multi-tab web shell with custom blurred backgrounds and encrypted transport.",
+      "description": "Single-page ops panel: multi-tab terminal, file manager and system status charts, all over an encrypted channel.",
       "newTab": "New terminal",
       "background": "Background",
       "help": "Help",
       "apply": "Apply background",
-      "reset": "Reset"
-    },
-    "files": {
-      "title": "File Manager",
-      "description": "Browse, upload, download, rename and delete files under the configured root.",
-      "upload": "Upload",
-      "newFolder": "New folder",
-      "rename": "Rename",
-      "delete": "Delete",
-      "download": "Download",
-      "refresh": "Refresh"
+      "reset": "Reset",
+      "terminal": "Terminal",
+      "files": "Files",
+      "status": "Status"
     }
   }
 }

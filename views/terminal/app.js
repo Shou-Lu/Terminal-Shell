@@ -4,12 +4,18 @@ import {
   b64decode,
   utf8,
 } from "./crypto.js";
+import { initFilesPanel } from "./files.js";
+import { initStatusPanel } from "./status.js";
 
 const $ = (id) => document.getElementById(id);
 
 const elements = {
   app: $("app"),
   customBg: $("custom-bg"),
+  workspace: $("workspace"),
+  filesView: $("files-view"),
+  statusView: $("status-view"),
+  viewTabs: Array.from(document.querySelectorAll(".view-tab")),
   tabstrip: $("tabstrip"),
   terminals: $("terminals"),
   empty: $("empty-state"),
@@ -37,6 +43,7 @@ const elements = {
 };
 
 const SETTINGS_KEY = "terminal-shell:settings";
+const VIEW_KEY = "terminal-shell:view";
 const TABS_KEY = "terminal-shell:tabs";
 const OWNER_KEY = "terminal-shell:owner";
 
@@ -137,10 +144,13 @@ const state = {
   hasBackground: false,
   theme: "dark",
   fatal: false,
+  view: "terminal",
 };
 
 let bridge = null;
 let channel = null;
+let filesController = null;
+let statusController = null;
 
 /* ------------------------------------------------------------------ */
 /* Boot                                                               */
@@ -211,6 +221,77 @@ async function init() {
   await loadPreferences();
   loadBackground();
   startConnectionWatchdog();
+  setView(loadSavedView(), { persist: false });
+}
+
+/* ------------------------------------------------------------------ */
+/* View switching (terminal / files / status)                         */
+/* ------------------------------------------------------------------ */
+const VIEW_NAMES = ["terminal", "files", "status"];
+
+function normalizeView(name) {
+  return VIEW_NAMES.includes(name) ? name : "terminal";
+}
+
+function loadSavedView() {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    return normalizeView(saved || "terminal");
+  } catch (error) {
+    return "terminal";
+  }
+}
+
+function ensureFilesController() {
+  if (!channel) return null;
+  if (!filesController) filesController = initFilesPanel(channel);
+  return filesController;
+}
+
+function ensureStatusController() {
+  if (!channel) return null;
+  if (!statusController) statusController = initStatusPanel(channel);
+  return statusController;
+}
+
+function setView(name, options = {}) {
+  const next = normalizeView(name);
+  const previous = state.view;
+  const changed = previous !== next;
+
+  if (changed && previous === "status") statusController?.deactivate();
+
+  state.view = next;
+  document.body.dataset.view = next;
+
+  for (const tab of elements.viewTabs) {
+    const active = tab.dataset.view === next;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  }
+
+  const showTerminal = next === "terminal";
+  elements.workspace.classList.toggle("hidden", !showTerminal);
+  elements.filesView.classList.toggle("hidden", next !== "files");
+  elements.statusView.classList.toggle("hidden", next !== "status");
+
+  if (next === "terminal") {
+    if (state.active) {
+      requestAnimationFrame(() => fitTab(state.tabs.get(state.active)));
+    }
+  } else if (next === "files") {
+    ensureFilesController()?.activate();
+  } else if (next === "status") {
+    ensureStatusController()?.activate();
+  }
+
+  if (options.persist !== false) {
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch (error) {
+      // localStorage can be unavailable inside sandboxed frames.
+    }
+  }
 }
 
 function startConnectionWatchdog() {
@@ -1324,6 +1405,10 @@ function saveSettings() {
 /* UI                                                                 */
 /* ------------------------------------------------------------------ */
 function bindUi() {
+  for (const tab of elements.viewTabs) {
+    tab.addEventListener("click", () => setView(tab.dataset.view));
+  }
+
   elements.newTab.addEventListener("click", createTerminal);
   elements.emptyNew.addEventListener("click", createTerminal);
   elements.bgBtn.addEventListener("click", () => openModal(elements.bgModal));
@@ -1424,6 +1509,8 @@ function handleGlobalKey(event) {
       return;
     }
   }
+
+  if (state.view !== "terminal") return;
 
   const target = event.target;
   if (
