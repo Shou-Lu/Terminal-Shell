@@ -17,6 +17,23 @@
     "hint": "留空使用当前用户的主目录。必须是已存在的目录。",
     "default": ""
   },
+  "file_manager_root": {
+    "description": "文件管理根目录",
+    "type": "string",
+    "hint": "文件管理页只能浏览此目录下的内容。留空使用当前用户主目录。",
+    "default": ""
+  },
+  "file_manager_max_mb": {
+    "description": "文件管理单文件上限（MB）",
+    "type": "int",
+    "hint": "上传、下载和读取单个文件的大小上限。",
+    "default": 8,
+    "slider": {
+      "min": 1,
+      "max": 32,
+      "step": 1
+    }
+  },
   "max_sessions": {
     "description": "每个用户最大终端数",
     "type": "int",
@@ -42,7 +59,7 @@
   "allow_background_upload": {
     "description": "允许上传自定义背景",
     "type": "bool",
-    "hint": "允许用户上传图片作为高斯泼溅背景。图片会保存在插件数据目录中。",
+    "hint": "允许用户上传图片作为终端背景。图片会保存在插件数据目录中。",
     "default": true
   },
   "max_upload_mb": {

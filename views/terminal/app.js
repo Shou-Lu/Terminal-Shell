@@ -4,13 +4,12 @@ import {
   b64decode,
   utf8,
 } from "./crypto.js";
-import { SplatBackground } from "./splat.js";
 
 const $ = (id) => document.getElementById(id);
 
 const elements = {
   app: $("app"),
-  canvas: $("splat-canvas"),
+  customBg: $("custom-bg"),
   tabstrip: $("tabstrip"),
   terminals: $("terminals"),
   empty: $("empty-state"),
@@ -42,26 +41,24 @@ const TABS_KEY = "terminal-shell:tabs";
 const OWNER_KEY = "terminal-shell:owner";
 
 const DEFAULT_SETTINGS = {
-  size: 3.2,
-  glow: 1.2,
-  drift: 1,
-  veil: 0.22,
+  blur: 12,
+  veil: 0.3,
   fontSize: 14,
 };
 
 const DARK_XTERM_THEME = {
   background: "rgba(0,0,0,0)",
   foreground: "#e7efff",
-  cursor: "#6ee7ff",
+  cursor: "#00d2ff",
   cursorAccent: "#05070f",
-  selectionBackground: "rgba(110,231,255,0.26)",
+  selectionBackground: "rgba(0,210,255,0.24)",
   black: "#0b1220",
   red: "#ff7a90",
-  green: "#3ddc97",
+  green: "#00d2a8",
   yellow: "#ffc46b",
   blue: "#6ea8ff",
   magenta: "#c084fc",
-  cyan: "#6ee7ff",
+  cyan: "#00d2ff",
   white: "#dfe9ff",
   brightBlack: "#5c7299",
   brightRed: "#ff9bac",
@@ -136,14 +133,14 @@ const state = {
   contextMenu: null,
   previewUrl: null,
   pendingBackground: null,
-  background: null,
+  backgroundUrl: null,
+  hasBackground: false,
   theme: "dark",
   fatal: false,
 };
 
 let bridge = null;
 let channel = null;
-let splat = null;
 
 /* ------------------------------------------------------------------ */
 /* Boot                                                               */
@@ -156,7 +153,6 @@ init().catch((error) => {
 async function init() {
   const initialTheme = document.documentElement.dataset.theme;
   applyTheme(initialTheme ? initialTheme !== "light" : true);
-  initSplat();
   bindUi();
   startClock();
   applySettings({ fit: false, save: false });
@@ -241,21 +237,6 @@ async function waitForBridge() {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return null;
-}
-
-function initSplat() {
-  try {
-    splat = new SplatBackground(elements.canvas, state.settings);
-    splat.setDefault()
-      .then(updateBackgroundContrast)
-      .catch((error) => {
-        console.warn("default splat failed", error);
-      });
-  } catch (error) {
-    console.warn("splat renderer unavailable", error);
-    document.body.classList.add("no-webgl");
-    if (elements.canvas) elements.canvas.style.display = "none";
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1078,17 +1059,39 @@ async function pollOnce() {
 /* ------------------------------------------------------------------ */
 /* Background                                                         */
 /* ------------------------------------------------------------------ */
+function setBackgroundImage(bytes, mime) {
+  clearBackgroundImage();
+  if (!bytes?.length) return;
+  const blob = new Blob([bytes], { type: mime || "image/jpeg" });
+  state.backgroundUrl = URL.createObjectURL(blob);
+  state.hasBackground = true;
+  elements.customBg.style.backgroundImage = `url("${state.backgroundUrl}")`;
+  document.body.classList.add("has-custom-bg");
+}
+
+function clearBackgroundImage() {
+  if (state.backgroundUrl) {
+    URL.revokeObjectURL(state.backgroundUrl);
+    state.backgroundUrl = null;
+  }
+  state.hasBackground = false;
+  if (elements.customBg) {
+    elements.customBg.style.backgroundImage = "";
+  }
+  document.body.classList.remove("has-custom-bg");
+}
+
 async function loadBackground() {
   if (!channel) return;
   try {
     const data = await channel.post("background/get", {});
     if (data.exists && data.data) {
-      const bytes = b64decode(data.data);
-      state.background = { bytes, mime: data.mime || "image/jpeg" };
-      await splat?.setBytes(bytes, data.mime || "image/jpeg");
-      updateBackgroundContrast();
+      setBackgroundImage(
+        b64decode(data.data),
+        data.mime || "image/jpeg",
+      );
     } else {
-      state.background = null;
+      clearBackgroundImage();
     }
   } catch (error) {
     console.warn("background load failed", error);
@@ -1166,12 +1169,10 @@ async function applyBackground() {
       mime,
       data: b64encode(bytes),
     });
-    state.background = { bytes, mime };
-    await splat?.setBytes(bytes, mime);
-    updateBackgroundContrast();
+    setBackgroundImage(bytes, mime);
     state.pendingBackground = null;
     elements.bgStatus.textContent = "背景已应用。";
-    toast("高斯泼溅背景已更新");
+    toast("自定义背景已更新");
   } catch (error) {
     console.error(error);
     elements.bgStatus.textContent = error?.message || "上传失败";
@@ -1188,7 +1189,7 @@ async function resetBackground() {
   elements.bgStatus.textContent = "正在恢复默认背景…";
   try {
     await channel.post("background/reset", {});
-    state.background = null;
+    clearBackgroundImage();
     state.pendingBackground = null;
     if (state.previewUrl) {
       URL.revokeObjectURL(state.previewUrl);
@@ -1197,10 +1198,8 @@ async function resetBackground() {
     elements.bgPreview.hidden = true;
     elements.bgPreview.removeAttribute("src");
     elements.bgApply.disabled = true;
-    await splat?.setDefault();
-    updateBackgroundContrast();
-    elements.bgStatus.textContent = "已恢复默认背景。";
-    toast("已恢复默认高斯泼溅背景");
+    elements.bgStatus.textContent = "已恢复默认网格背景。";
+    toast("已恢复默认背景");
   } catch (error) {
     console.error(error);
     elements.bgStatus.textContent = error?.message || "恢复失败";
@@ -1219,11 +1218,10 @@ function applySettings(options = {}) {
     "--veil-opacity",
     String(settings.veil),
   );
-  splat?.setOptions({
-    size: settings.size,
-    glow: settings.glow,
-    drift: settings.drift,
-  });
+  document.documentElement.style.setProperty(
+    "--bg-blur",
+    `${Number(settings.blur)}px`,
+  );
   for (const input of document.querySelectorAll("input[data-option]")) {
     const key = input.dataset.option;
     if (key in settings) input.value = String(settings[key]);
@@ -1232,7 +1230,7 @@ function applySettings(options = {}) {
     const key = output.dataset.output;
     if (key in settings) {
       output.textContent =
-        key === "fontSize"
+        key === "fontSize" || key === "blur"
           ? String(Math.round(settings[key]))
           : Number(settings[key]).toFixed(2);
     }
@@ -1308,10 +1306,8 @@ function normalizeSettings(raw) {
     const value = Number(raw[key]);
     if (Number.isFinite(value)) settings[key] = value;
   }
-  settings.size = clamp(settings.size, 0.45, 6);
-  settings.glow = clamp(settings.glow, 0.35, 2);
-  settings.drift = clamp(settings.drift, 0, 2.5);
-  settings.veil = clamp(settings.veil, 0.15, 0.9);
+  settings.blur = clamp(settings.blur, 0, 40);
+  settings.veil = clamp(settings.veil, 0.05, 0.85);
   settings.fontSize = Math.round(clamp(settings.fontSize, 11, 20));
   return settings;
 }
@@ -1479,10 +1475,10 @@ function openModal(modal) {
   if (state.active) state.tabs.get(state.active)?.term?.blur();
   if (modal === elements.bgModal) {
     applySettings();
-    elements.bgStatus.textContent = state.background
+    elements.bgStatus.textContent = state.hasBackground
       ? "当前已有自定义背景。选择新图片可替换。"
       : "图片保存在 AstrBot 插件数据目录；上传与回传均走加密通道。";
-    if (!state.background && !state.pendingBackground) {
+    if (!state.hasBackground && !state.pendingBackground) {
       elements.bgPreview.hidden = true;
     }
   }
@@ -1605,11 +1601,6 @@ function bufferText(tab) {
   } catch (error) {
     return "";
   }
-}
-
-function updateBackgroundContrast() {
-  const luminance = splat?.luminance ?? 0;
-  document.body.classList.toggle("bright-bg", luminance > 0.4);
 }
 
 function updatePaneMeta(tab) {

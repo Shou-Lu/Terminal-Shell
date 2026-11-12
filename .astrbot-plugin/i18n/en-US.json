@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Terminal Shell",
-    "short_desc": "Gaussian-splat multi-tab web shell for AstrBot",
-    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, user-supplied Gaussian-splat backgrounds, ECDH + AES-256-GCM encrypted transport, an admin-only /terminal command and an LLM shell tool."
+    "short_desc": "Dark glass multi-tab web shell with custom blurred backgrounds and file manager",
+    "desc": "A real shell inside AstrBot WebUI with browser-style tabs, custom blurred image backgrounds, a file manager, ECDH + AES-256-GCM encrypted transport, an admin-only /terminal command and an LLM shell tool."
   },
   "config": {
     "enabled": {
@@ -17,6 +17,14 @@
       "description": "Startup directory",
       "hint": "Leave empty for the current user's home directory. Must exist."
     },
+    "file_manager_root": {
+      "description": "File manager root",
+      "hint": "The file manager can only access this directory. Leave empty for the home directory."
+    },
+    "file_manager_max_mb": {
+      "description": "File size limit (MB)",
+      "hint": "Maximum size for upload, download and preview operations."
+    },
     "max_sessions": {
       "description": "Maximum terminals per user",
       "hint": "Upper bound for simultaneously alive terminal tabs."
@@ -27,7 +35,7 @@
     },
     "allow_background_upload": {
       "description": "Allow custom backgrounds",
-      "hint": "Allow users to upload an image for the Gaussian-splat background. Images are stored in the plugin data directory."
+      "hint": "Allow users to upload a custom blurred background image. Images are stored in the plugin data directory."
     },
     "max_upload_mb": {
       "description": "Background size limit (MB)",
@@ -41,12 +49,22 @@
   "views": {
     "terminal": {
       "title": "Terminal Shell",
-      "description": "Multi-tab web shell with custom Gaussian-splat backgrounds and encrypted transport.",
+      "description": "Multi-tab web shell with custom blurred backgrounds and encrypted transport.",
       "newTab": "New terminal",
       "background": "Background",
       "help": "Help",
       "apply": "Apply background",
       "reset": "Reset"
+    },
+    "files": {
+      "title": "File Manager",
+      "description": "Browse, upload, download, rename and delete files under the configured root.",
+      "upload": "Upload",
+      "newFolder": "New folder",
+      "rename": "Rename",
+      "delete": "Delete",
+      "download": "Download",
+      "refresh": "Refresh"
     }
   }
 }

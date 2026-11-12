@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="./logo.png" width="112" height="112" alt="Terminal Shell logo" />
+<img src="https://raw.githubusercontent.com/Shou-Lu/Terminal-Shell/main/logo.png" width="112" height="112" alt="Terminal Shell logo" />
 
 # Terminal Shell终端
 
 **在 AstrBot WebUI 里打开一个真正属于你的 Shell。**
 
-多标签终端 · 自定义高斯泼溅背景 · ECDH + AES-256-GCM 双向加密
+多标签终端 · 自定义模糊背景 · 文件管理 · ECDH + AES-256-GCM 双向加密
 
 [![AstrBot](https://img.shields.io/badge/AstrBot-%3E%3D4.17-6ee7ff)](https://astrbot.app)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
@@ -23,25 +23,27 @@
 Terminal Shell终端是 AstrBot 的插件可视化视图：在 WebUI 里以浏览器标签页的方式管理多条真实 Shell 进程。
 它不依赖第三方终端服务，直接由 AstrBot 后端创建 PTY / ConPTY，把输入输出通过加密通道实时回传。
 
-整体界面使用**高斯泼溅（Gaussian Splatting）**风格：用户上传的图片会被采样成数千个柔和的高斯光点，
-在终端玻璃面板背后缓慢漂移，并随鼠标产生轻微视差。图片、终端列表、输入、输出全部走应用层加密，
+整体界面使用与 SaveBili 相同的深色毛玻璃 + 网格背景。你可以上传自己的图片作为背景，
+并通过模糊度和遮罩滑杆控制可读性；图片、终端列表、输入、输出全部走应用层加密，
 即使 AstrBot 部署在普通 HTTP 局域网地址上也能保持端到端密文传输。
 
+> 背景配色和深色网格风格参考 [SaveBili](https://github.com/SATA-F5/SaveBili)（AGPL-3.0）。
+>
 > 这是一个拥有 Shell 执行权限的高权限工具，请务必阅读[安全须知](#安全须知)后再部署。
 
 ## 功能
 
 - **浏览器式多标签**：新建、拖动排序、双击重命名、中键关闭，每个标签一条独立 Shell。
 - **真实终端**：Linux / macOS 使用原生 PTY；Windows 使用 ConPTY（`pywinpty`），支持颜色、光标与交互式程序。
-- **自定义高斯泼溅背景**：上传任意图片，前端自动压缩并采样成高斯光点；内置默认星云背景。
+- **自定义模糊背景**：上传任意图片，前端压缩后加密上传；支持模糊度、遮罩和字号实时调整。
 - **加密终端**：ECDH P-256 握手 → HKDF-SHA256 派生 → AES-256-GCM；请求、响应、SSE 每一帧都加密。
 - **聊天 / LLM 调用**：管理员可用 `/终端 <命令>` 或 `terminal_shell_exec` 工具调用持久化 Shell，输出加密落盘。
 - **HTTP 环境可用**：HTTPS / localhost 使用浏览器原生 WebCrypto；普通 HTTP 自动切换到内置的 Noble 纯 JS 实现。
 - **会话恢复**：刷新页面后自动恢复同一浏览器标签页创建的终端和最近输出。
+- **文件管理**：独立页面，支持浏览、上传、下载、预览、编辑文本、重命名、新建文件夹和删除文件。
 - **移动端适配**：响应式布局，触屏设备提供 Esc、Tab、Ctrl+C、方向键等快捷按键。
-- **可调外观**：泼溅尺寸、光晕强度、漂移速度、界面遮罩、终端字号均可实时调节并本地记忆。
+- **可调外观**：背景模糊、界面遮罩、终端字号均可实时调节并持久化。
 - **访问控制**：WebUI 视图默认允许所有已登录用户；`/终端` 与 LLM 工具默认仅管理员可用，并受 AstrBot 指令权限管理约束。
-- **智能对比度**：根据背景图平均亮度自动加深玻璃面板，保证终端文字可读。
 
 ## 安装
 
@@ -66,6 +68,7 @@ pywinpty>=2.0.13; sys_platform == "win32"
 ### 打开终端
 
 插件页 → **Terminal Shell终端** → 可视化视图 **Terminal Shell终端**。
+插件详情页还会提供 **文件管理** 视图，用于浏览、上传、下载和编辑文件。
 
 > 视图运行在受限 iframe 中，必须从 AstrBot 插件详情页打开，不能直接访问 HTML 文件。
 > WebUI 视图默认允许所有已登录的 AstrBot 用户访问；请务必为 WebUI 设置强密码。
@@ -79,6 +82,8 @@ pywinpty>=2.0.13; sys_platform == "win32"
 | `enabled` | bool | `true` | 关闭后前端无法建立加密会话或创建终端。 |
 | `shell` | string | `""` | 自定义 Shell 路径。留空自动选择。 |
 | `cwd` | string | `""` | 终端启动目录，留空为用户主目录。 |
+| `file_manager_root` | string | `""` | 文件管理页的根目录，留空为用户主目录。 |
+| `file_manager_max_mb` | int | `8` | 文件管理单文件大小上限。 |
 | `max_sessions` | int | `8` | 每个用户同时存活的终端上限。 |
 | `idle_timeout` | int | `1800` | 无输入输出的空闲回收时间（秒）。 |
 | `allow_background_upload` | bool | `true` | 是否允许上传自定义背景。 |
@@ -134,7 +139,13 @@ pywinpty>=2.0.13; sys_platform == "win32"
 1. 选择或拖入图片。
 2. 前端将图片缩放到最长边 1600px，并编码为 JPEG（约几十 KB 到几百 KB）。
 3. 点击「应用背景」，图片经 AES-256-GCM 加密后上传。
-4. 后端校验文件头并保存到插件数据目录，随后回传渲染。
+4. 后端校验文件头并保存到插件数据目录，随后作为 CSS 背景图回传渲染。
+
+你可以实时调整：
+
+- **背景模糊**：0–40px
+- **界面遮罩**：控制深色遮罩强度，保证终端文字可读
+- **终端字号**：11–20px
 
 背景按 WebUI 用户名隔离，保存在：
 
@@ -142,7 +153,21 @@ pywinpty>=2.0.13; sys_platform == "win32"
 data/plugin_data/<插件目录名>/backgrounds/
 ```
 
-> 传输过程加密，但静态文件本身以原始字节保存在磁盘上。若需要静态加密，请自行使用全盘加密。
+> 传输过程加密，但背景图片静态文件本身以原始字节保存在磁盘上。若需要静态加密，请自行使用全盘加密。
+
+### 文件管理
+
+插件提供独立视图「文件管理」，可以：
+
+- 浏览目录、面包屑跳转、返回上级
+- 上传文件（加密后写入）
+- 下载文件（加密回传后由浏览器保存）
+- 预览图片、查看和编辑文本文件
+- 新建文件夹、重命名、删除文件和目录
+- 单文件大小受 `file_manager_max_mb` 限制
+- 只能访问 `file_manager_root` 配置的根目录，无法通过 `..` 或符号链接逃逸
+
+默认根目录是运行 AstrBot 的用户主目录。文件管理页与 WebUI 终端一样，对所有已登录 WebUI 用户开放；如果 WebUI 不是只对可信用户开放，请谨慎使用或把根目录设置为专用目录。
 
 ### 持久化数据
 
@@ -151,7 +176,7 @@ data/plugin_data/<插件目录名>/backgrounds/
 ```text
 data/plugin_data/<插件目录名>/
 ├─ backgrounds/          # 自定义背景图片与元数据（按用户哈希隔离）
-├─ preferences/          # 每个 WebUI 用户的界面设置（泼溅、遮罩、字号等）
+├─ preferences/          # 每个 WebUI 用户的界面设置（模糊、遮罩、字号等）
 └─ sessions/             # 聊天/LLM 持久化 Shell 的加密输出快照
 ```
 
@@ -225,10 +250,12 @@ AES-GCM 的附加认证数据（AAD）为：
 
 - 务必为 AstrBot WebUI 设置强密码，并尽量只在内网或 VPN 中开放。
 - WebUI 终端视图默认允许所有已登录用户访问；`/终端` 与 `terminal_shell_exec` 默认仅管理员可用。
+- 文件管理页同样对所有已登录 WebUI 用户开放，且默认根目录是运行 AstrBot 的用户主目录；如不需要请将 `file_manager_root` 指向专用目录，或通过反向代理限制访问。
 - 终端进程继承 AstrBot 进程的系统权限；不要以 root / Administrator 运行 AstrBot，除非你明确知道后果。
 - 终端会继承 AstrBot 进程的环境变量。若你的部署方式把 API Key、Token 等放在环境变量中，它们可能对终端用户可见；请使用专用低权限账户运行，或改用配置文件/密钥管理。
 - 不要把 AstrBot 直接暴露在公网；如需公网访问，请在反向代理层增加 HTTPS、认证、访问控制和速率限制。
 - 背景图片会保存在插件数据目录中，请自行做好磁盘与备份权限管理。
+- 文件管理页可以读取/修改 `file_manager_root` 下的文件，请合理设置该目录并做好备份。
 - 发现异常加密状态（标题栏显示「加密异常」）时，请刷新页面；不要忽略持续的解密失败。
 - 本插件不会记录终端输入输出到日志；但终端中运行的命令可能自行写入日志或历史文件。
 
@@ -260,6 +287,14 @@ AES-GCM 的附加认证数据（AAD）为：
 | `background/get` | POST | 读取背景 |
 | `background/upload` | POST | 上传背景（密文内为 Base64 图片） |
 | `background/reset` | POST | 恢复默认背景 |
+| `preferences/get` | POST | 读取界面设置 |
+| `preferences/save` | POST | 保存界面设置 |
+| `files/list` | POST | 列出文件 |
+| `files/read` | POST | 加密读取文件 |
+| `files/write` | POST | 加密写入文件 |
+| `files/mkdir` | POST | 新建目录 |
+| `files/delete` | POST | 删除文件/目录 |
+| `files/rename` | POST | 重命名 |
 
 ## 目录结构
 
@@ -270,14 +305,19 @@ astrbot_plugin_terminal_shell/
 │  ├─ crypto.py                # ECDH / HKDF / AES-GCM 会话与信封
 │  ├─ terminal.py              # PTY / ConPTY、输出 Hub、生命周期
 │  ├─ chat_shell.py            # /终端 与 LLM 使用的持久化 Shell
+│  ├─ files.py                 # 文件管理安全根目录与读写操作
 │  └─ storage.py               # 背景、界面设置、加密会话快照
 ├─ views/terminal/
-│  ├─ index.html               # 插件可视化视图
-│  ├─ style.css                # 玻璃拟态 + 响应式 UI
+│  ├─ index.html               # 终端视图
+│  ├─ style.css                # SaveBili 风深色网格 + 毛玻璃
 │  ├─ app.js                   # 多标签、输入输出、背景、快捷键
 │  ├─ crypto.js                # WebCrypto + Noble 双后端
-│  ├─ splat.js                 # WebGL2 高斯泼溅渲染器
 │  └─ vendor/                  # xterm.js、Noble（含许可证）
+├─ views/files/
+│  ├─ index.html               # 文件管理视图
+│  ├─ style.css
+│  ├─ app.js
+│  └─ crypto.js
 ├─ .astrbot-plugin/i18n/       # 插件 / 配置 / 视图国际化
 ├─ _conf_schema.json
 ├─ metadata.yaml

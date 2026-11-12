@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Terminal Shell终端",
-    "short_desc": "高斯泼溅风格的网页版多开 Shell 终端",
-    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义高斯泼溅背景、ECDH + AES-256-GCM 双向加密传输，并提供 /终端 管理员指令与 LLM Shell 工具。"
+    "short_desc": "深色毛玻璃多标签网页 Shell，支持自定义模糊背景与文件管理",
+    "desc": "在 AstrBot WebUI 中打开一个真正的 Shell。支持多标签终端、自定义图片背景与模糊度、文件管理页、ECDH + AES-256-GCM 加密传输，以及 /终端 管理员指令与 LLM Shell 工具。"
   },
   "config": {
     "enabled": {
@@ -17,6 +17,14 @@
       "description": "终端启动目录",
       "hint": "留空使用当前用户的主目录。必须是已存在的目录。"
     },
+    "file_manager_root": {
+      "description": "文件管理根目录",
+      "hint": "文件管理页只能浏览此目录下的内容。留空使用当前用户主目录。"
+    },
+    "file_manager_max_mb": {
+      "description": "文件管理单文件上限（MB）",
+      "hint": "上传、下载和读取单个文件的大小上限。"
+    },
     "max_sessions": {
       "description": "每个用户最大终端数",
       "hint": "同时存活的终端标签上限，建议不要设置过大。"
@@ -27,7 +35,7 @@
     },
     "allow_background_upload": {
       "description": "允许上传自定义背景",
-      "hint": "允许用户上传图片作为高斯泼溅背景。图片会保存在插件数据目录中。"
+      "hint": "允许用户上传图片作为终端背景。图片会保存在插件数据目录中。"
     },
     "max_upload_mb": {
       "description": "背景图片大小上限（MB）",
@@ -41,12 +49,22 @@
   "views": {
     "terminal": {
       "title": "Terminal Shell终端",
-      "description": "多标签网页 Shell，支持自定义高斯泼溅背景与双向加密传输。",
+      "description": "多标签网页 Shell，支持自定义模糊背景与双向加密传输。",
       "newTab": "新建终端",
       "background": "背景",
       "help": "帮助",
       "apply": "应用背景",
       "reset": "恢复默认"
+    },
+    "files": {
+      "title": "文件管理",
+      "description": "浏览、上传、下载、重命名和删除文件管理根目录下的文件。",
+      "upload": "上传文件",
+      "newFolder": "新建文件夹",
+      "rename": "重命名",
+      "delete": "删除",
+      "download": "下载",
+      "refresh": "刷新"
     }
   }
 }

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <title>文件管理 · Terminal Shell终端</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="fm-bg" aria-hidden="true"></div>
+    <div class="fm-grid" aria-hidden="true"></div>
+
+    <div class="fm-app">
+      <header class="fm-header">
+        <div class="fm-brand">
+          <div class="fm-logo" aria-hidden="true">/</div>
+          <div>
+            <strong>文件管理</strong>
+            <span>Terminal Shell终端</span>
+          </div>
+        </div>
+        <div class="fm-actions">
+          <button class="fm-btn ghost" id="refresh" type="button">刷新</button>
+          <button class="fm-btn ghost" id="mkdir" type="button">新建文件夹</button>
+          <label class="fm-btn primary" for="file-input">
+            上传文件
+            <input id="file-input" type="file" multiple hidden />
+          </label>
+          <span class="fm-badge" id="crypto-badge"><i></i>AES-256-GCM</span>
+        </div>
+      </header>
+
+      <div class="fm-toolbar">
+        <button class="fm-btn ghost small" id="up" type="button">↑ 上级</button>
+        <nav class="fm-breadcrumb" id="breadcrumb" aria-label="路径"></nav>
+        <span class="fm-root" id="root-label"></span>
+      </div>
+
+      <main class="fm-main">
+        <div class="fm-list-head" aria-hidden="true">
+          <span>名称</span>
+          <span>大小</span>
+          <span>修改时间</span>
+          <span>操作</span>
+        </div>
+        <div class="fm-list" id="file-list"></div>
+        <div class="fm-empty hidden" id="empty-state">
+          <div class="fm-empty-icon">∅</div>
+          <p>这个目录是空的</p>
+          <small>可以上传文件或新建文件夹</small>
+        </div>
+      </main>
+
+      <footer class="fm-footer">
+        <span id="status">正在连接加密通道…</span>
+        <span class="fm-spacer"></span>
+        <span id="mode-label">ECDH P-256 · AES-256-GCM</span>
+      </footer>
+    </div>
+
+    <div class="fm-modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="fm-modal-card">
+        <h2 id="modal-title">操作</h2>
+        <p class="fm-modal-message" id="modal-message"></p>
+        <input class="fm-input hidden" id="modal-input" type="text" autocomplete="off" />
+        <div class="fm-modal-actions">
+          <button class="fm-btn ghost" id="modal-cancel" type="button">取消</button>
+          <button class="fm-btn primary" id="modal-ok" type="button">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fm-modal hidden" id="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="fm-modal-card wide">
+        <div class="fm-preview-head">
+          <h2 id="preview-title">预览</h2>
+          <button class="fm-icon-btn" id="preview-close" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="fm-preview-body" id="preview-body"></div>
+        <div class="fm-modal-actions">
+          <button class="fm-btn ghost" id="preview-download" type="button">下载</button>
+          <button class="fm-btn primary hidden" id="preview-save" type="button">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fm-toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

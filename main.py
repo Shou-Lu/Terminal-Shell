@@ -28,6 +28,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from .core.chat_shell import PersistentChatShell
 from .core.crypto import CryptoError, SessionCipher
+from .core.files import FileError, FileManager
 from .core.storage import (
     BackgroundError,
     BackgroundStore,
@@ -88,6 +89,12 @@ class TerminalShellPlugin(Star):
             max_output_chars=12000,
             chat_output_chars=3500,
         )
+        self.files = FileManager(
+            self._config_str("file_manager_root", ""),
+            max_bytes=self._config_int("file_manager_max_mb", 8)
+            * 1024
+            * 1024,
+        )
 
         self._register_web_apis()
 
@@ -126,6 +133,7 @@ class TerminalShellPlugin(Star):
             "shell": Path(self.manager.shell).name
             if self.manager.shell
             else "",
+            "file_manager_max_bytes": self.files.max_bytes,
         }
 
     # ------------------------------------------------------------------
@@ -279,6 +287,12 @@ class TerminalShellPlugin(Star):
                 ["POST"],
                 "Reset UI preferences",
             ),
+            ("files/list", self.api_files_list, ["POST"], "List files"),
+            ("files/read", self.api_files_read, ["POST"], "Read file"),
+            ("files/write", self.api_files_write, ["POST"], "Write file"),
+            ("files/mkdir", self.api_files_mkdir, ["POST"], "Create directory"),
+            ("files/delete", self.api_files_delete, ["POST"], "Delete file"),
+            ("files/rename", self.api_files_rename, ["POST"], "Rename file"),
         ]
         for route, handler, methods, desc in routes:
             for prefix in ROUTE_PREFIXES:
@@ -600,6 +614,140 @@ class TerminalShellPlugin(Star):
                 "preferences/reset",
                 {"ok": True, "removed": removed},
             )
+        )
+
+    # ------------------------------------------------------------------
+    # File manager
+    # ------------------------------------------------------------------
+    async def api_files_list(self):
+        payload, session, error = await self._open("files/list")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        path = payload.get("path") or ""
+        try:
+            data = await asyncio.to_thread(self.files.list, path)
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to list files")
+            return error_response("读取目录失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/list", data)
+        )
+
+    async def api_files_read(self):
+        payload, session, error = await self._open("files/read")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        path = payload.get("path")
+        if not isinstance(path, str):
+            return error_response("文件路径不正确", status_code=400)
+        try:
+            data = await asyncio.to_thread(self.files.read, path)
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to read file")
+            return error_response("读取文件失败", status_code=500)
+        data["data"] = base64.b64encode(data["data"]).decode("ascii")
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/read", data)
+        )
+
+    async def api_files_write(self):
+        payload, session, error = await self._open("files/write")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        path = payload.get("path")
+        encoded = payload.get("data")
+        if not isinstance(path, str) or not isinstance(encoded, str):
+            return error_response("文件参数不正确", status_code=400)
+        try:
+            raw = base64.b64decode(encoded.encode("ascii"), validate=True)
+        except (binascii.Error, UnicodeEncodeError, ValueError):
+            return error_response("文件内容不是合法 Base64", status_code=400)
+        try:
+            overwrite = payload.get("overwrite", True)
+            if not isinstance(overwrite, bool):
+                overwrite = True
+            data = await asyncio.to_thread(
+                self.files.write,
+                path,
+                raw,
+                overwrite=overwrite,
+            )
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to write file")
+            return error_response("写入文件失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/write", data)
+        )
+
+    async def api_files_mkdir(self):
+        payload, session, error = await self._open("files/mkdir")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        path = payload.get("path")
+        if not isinstance(path, str):
+            return error_response("目录路径不正确", status_code=400)
+        try:
+            data = await asyncio.to_thread(self.files.mkdir, path)
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to create directory")
+            return error_response("创建目录失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/mkdir", data)
+        )
+
+    async def api_files_delete(self):
+        payload, session, error = await self._open("files/delete")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        path = payload.get("path")
+        if not isinstance(path, str):
+            return error_response("文件路径不正确", status_code=400)
+        try:
+            data = await asyncio.to_thread(
+                self.files.delete,
+                path,
+                recursive=payload.get("recursive") is True,
+            )
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to delete file")
+            return error_response("删除失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/delete", data)
+        )
+
+    async def api_files_rename(self):
+        payload, session, error = await self._open("files/rename")
+        if error is not None:
+            return error
+        assert payload is not None and session is not None
+        old = payload.get("old")
+        new = payload.get("new")
+        if not isinstance(old, str) or not isinstance(new, str):
+            return error_response("文件路径不正确", status_code=400)
+        try:
+            data = await asyncio.to_thread(self.files.rename, old, new)
+        except FileError as exc:
+            return error_response(str(exc), status_code=400)
+        except Exception:
+            logger.exception("Terminal Shell failed to rename file")
+            return error_response("重命名失败", status_code=500)
+        return json_response(
+            self.cipher.encrypt(session.sid, "files/rename", data)
         )
 
     # ------------------------------------------------------------------
