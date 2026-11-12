@@ -87,6 +87,10 @@ body {
     var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 [data-theme="light"] body {
@@ -118,6 +122,7 @@ select {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 button:disabled {
@@ -186,9 +191,12 @@ body:not(.has-custom-bg) .custom-bg {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: 100dvh;
-  padding: 14px;
-  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  height: var(--app-height, 100dvh);
+  padding:
+    max(14px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
 }
 
 /* ------------------------------------------------------------------ */
@@ -704,6 +712,8 @@ body.has-custom-bg .titlebar {
 
 .xterm-host .xterm-viewport {
   background: transparent !important;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   scrollbar-width: thin;
   scrollbar-color: rgba(137, 181, 255, 0.22) transparent;
 }
@@ -730,6 +740,13 @@ body.has-custom-bg .titlebar {
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.018);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.touch-keys::-webkit-scrollbar {
+  display: none;
 }
 
 .touch-keys button {
@@ -1177,7 +1194,7 @@ kbd {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 52px;
+  bottom: max(52px, calc(env(safe-area-inset-bottom) + 20px));
   z-index: 90;
   max-width: min(520px, calc(100vw - 32px));
   padding: 9px 15px;
@@ -1345,10 +1362,82 @@ body[data-view="status"] .new-tab {
   }
 }
 
+@media (max-width: 760px) {
+  .titlebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "views views actions"
+      "tabs tabs newtab";
+    gap: 6px 8px;
+    min-height: 0;
+    padding: 7px 8px;
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .view-tabs {
+    grid-area: views;
+    justify-self: start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .view-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .titlebar-actions {
+    grid-area: actions;
+    justify-self: end;
+    gap: 6px;
+  }
+
+  .tabstrip {
+    grid-area: tabs;
+    width: 100%;
+  }
+
+  .new-tab {
+    grid-area: newtab;
+  }
+
+  body[data-view="files"] .titlebar,
+  body[data-view="status"] .titlebar {
+    grid-template-areas: "views views actions";
+    grid-template-rows: auto;
+  }
+
+  .app {
+    gap: 8px;
+  }
+
+  .pane-actions button {
+    min-width: 32px;
+    height: 28px;
+  }
+
+  .status-head {
+    gap: 10px;
+  }
+
+  .status-head-actions {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+}
+
 @media (max-width: 620px) {
   .app {
     gap: 7px;
-    padding: 8px;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
   }
 
   .titlebar {
@@ -1415,18 +1504,159 @@ body[data-view="status"] .new-tab {
   }
 
   .modal {
-    padding: 10px;
+    padding:
+      max(10px, env(safe-area-inset-top))
+      10px
+      max(10px, env(safe-area-inset-bottom));
   }
 
   .modal-card {
     padding: 17px;
     border-radius: 19px;
-    max-height: 92vh;
+    max-height: 90dvh;
+    overflow-y: auto;
   }
 
   .range-row {
     grid-template-columns: 64px minmax(0, 1fr) 38px;
     gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    gap: 6px;
+  }
+
+  .titlebar {
+    gap: 5px 6px;
+    padding: 6px 7px;
+    border-radius: 14px;
+  }
+
+  .view-tabs {
+    padding: 2px;
+  }
+
+  .view-tab {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .titlebar-actions {
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .ghost-btn.compact#bg-btn {
+    width: 34px;
+  }
+
+  .tab {
+    min-width: 96px;
+    height: 34px;
+  }
+
+  .touch-keys {
+    padding: 4px 6px;
+  }
+
+  .statusbar {
+    gap: 6px;
+  }
+
+  .modal {
+    padding:
+      max(10px, env(safe-area-inset-top))
+      10px
+      max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal-card {
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (min-width: 481px) {
+  .touch-keys {
+    display: flex;
+  }
+
+  .touch-keys button {
+    min-width: 42px;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .pane-actions button {
+    min-width: 34px;
+    height: 32px;
+    font-size: 11.5px;
+  }
+
+  .tab {
+    height: 38px;
+  }
+
+  .tab-close {
+    width: 28px;
+    height: 28px;
+  }
+
+  .view-tab {
+    height: 32px;
+  }
+
+  .icon-btn {
+    width: 42px;
+    height: 42px;
+  }
+
+  .ghost-btn.compact {
+    height: 38px;
+  }
+
+  .xterm-host {
+    padding: 8px 4px 6px 8px;
+  }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .app {
+    gap: 6px;
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+
+  .titlebar {
+    padding: 5px 7px;
+  }
+
+  .tab {
+    height: 32px;
+  }
+
+  .touch-keys {
+    padding: 3px 6px;
+  }
+
+  .touch-keys button {
+    height: 28px;
+  }
+
+  .status-head {
+    padding: 10px 12px;
+  }
+
+  .status-chart {
+    height: 170px;
   }
 }
 

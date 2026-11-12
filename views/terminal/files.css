@@ -1081,7 +1081,7 @@
   }
 
   .fm-count {
-    font-size: 9.5px;
+    display: none;
   }
 
   .fm-fab {
@@ -1097,6 +1097,102 @@
 
   .fm-toast {
     bottom: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .fm-modal {
+    place-items: end center;
+    padding:
+      10px
+      max(10px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
+  .fm-modal-card,
+  .fm-modal-card.wide {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 24px;
+  }
+
+  .fm-modal-card {
+    padding: 22px;
+    overflow-y: auto;
+  }
+
+  .fm-modal-card.wide {
+    height: 92dvh;
+    padding: 14px;
+  }
+
+  .fm-input {
+    height: 50px;
+    font-size: 16px;
+  }
+
+  .fm-preview-body textarea {
+    min-height: 48dvh;
+    font-size: 12px;
+  }
+
+  .fm-menu {
+    max-width: calc(100vw - 20px);
+  }
+
+  .fm-toast {
+    bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px));
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (min-width: 481px) {
+  .fm-row-main {
+    min-height: 66px;
+  }
+
+  .fm-row-menu-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .fm-crumb {
+    height: 32px;
+  }
+
+  .fm-menu-item {
+    height: 48px;
+  }
+
+  .fm-fab-action {
+    height: 50px;
+  }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .fm-app {
+    border-radius: 16px;
+  }
+
+  .fm-appbar {
+    min-height: 48px;
+    padding: 5px 8px 2px;
+  }
+
+  .fm-pathbar {
+    min-height: 34px;
+    padding-bottom: 5px;
+  }
+
+  .fm-fab-wrap {
+    right: 14px;
+    bottom: 12px;
+  }
+
+  .fm-fab {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
   }
 }
 

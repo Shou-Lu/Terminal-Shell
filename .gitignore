@@ -8,5 +8,6 @@ venv/
 Thumbs.db
 .pytest_cache/
 .ruff_cache/
+tests/.devdata/
 *.log
 *.zip

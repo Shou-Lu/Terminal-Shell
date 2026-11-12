@@ -89,6 +89,8 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 210, 255, 0.25) transparent;
 }
@@ -353,14 +355,84 @@
   .status-head {
     align-items: flex-start;
     flex-direction: column;
+    padding: 12px 13px;
+    gap: 9px;
+  }
+
+  .status-head h2 {
+    font-size: 17px;
+  }
+
+  .status-head p {
+    font-size: 11px;
   }
 
   .status-head-actions {
     width: 100%;
+    flex-wrap: wrap;
     justify-content: space-between;
+    row-gap: 6px;
+    gap: 6px;
+  }
+
+  .status-scroll {
+    padding-right: 0;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .status-card {
+    padding: 10px 11px;
+  }
+
+  .status-card-value {
+    font-size: 21px;
+  }
+
+  .status-panel {
+    padding: 11px 12px;
+  }
+
+  .status-row {
+    gap: 8px;
+    font-size: 10.5px;
   }
 
   .status-chart {
     height: 200px;
+  }
+}
+
+@media (max-width: 420px) {
+  .status-metrics {
+    gap: 8px;
+  }
+
+  .status-card {
+    gap: 4px;
+  }
+
+  .status-card-label {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+  }
+
+  .status-card-value {
+    font-size: 19px;
+  }
+
+  .status-card-sub {
+    font-size: 9px;
+  }
+
+  .status-spark {
+    height: 36px;
+  }
+
+  .status-chart {
+    height: 170px;
+  }
+
+  .status-updated {
+    font-size: 9px;
   }
 }

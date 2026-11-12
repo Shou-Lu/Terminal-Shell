@@ -137,6 +137,7 @@ const state = {
   prefTimer: null,
   prefsLoaded: false,
   toastTimer: null,
+  viewportRaf: 0,
   contextMenu: null,
   previewUrl: null,
   pendingBackground: null,
@@ -165,6 +166,7 @@ async function init() {
   applyTheme(initialTheme ? initialTheme !== "light" : true);
   bindUi();
   startClock();
+  watchViewport();
   applySettings({ fit: false, save: false });
 
   bridge = await waitForBridge();
@@ -222,6 +224,40 @@ async function init() {
   loadBackground();
   startConnectionWatchdog();
   setView(loadSavedView(), { persist: false });
+}
+
+/* ------------------------------------------------------------------ */
+/* Multi-device viewport                                              */
+/* ------------------------------------------------------------------ */
+function syncViewportHeight() {
+  const viewport = window.visualViewport;
+  // Keep the layout viewport when the user pinch-zooms; only follow real
+  // viewport changes such as the on-screen keyboard or rotation.
+  if (viewport && viewport.scale > 1.05) return;
+  const height = Math.max(
+    240,
+    Math.round(viewport ? viewport.height : window.innerHeight),
+  );
+  document.documentElement.style.setProperty("--app-height", `${height}px`);
+}
+
+function watchViewport() {
+  syncViewportHeight();
+  const schedule = () => {
+    if (state.viewportRaf) return;
+    state.viewportRaf = requestAnimationFrame(() => {
+      state.viewportRaf = 0;
+      syncViewportHeight();
+      if (state.view === "terminal") refreshTerminalView();
+    });
+  };
+  window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("orientationchange", schedule, { passive: true });
+  const viewport = window.visualViewport;
+  if (viewport) {
+    viewport.addEventListener("resize", schedule, { passive: true });
+    viewport.addEventListener("scroll", schedule, { passive: true });
+  }
 }
 
 /* ------------------------------------------------------------------ */
