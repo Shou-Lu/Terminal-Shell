@@ -164,6 +164,13 @@ def _check_segment(segment: str) -> str | None:
 
 
 def _strip_wrappers(segment: str) -> str:
+    """Remove privilege/wrapper prefixes for inspection only.
+
+    ``sudo``, ``doas`` and similar prefixes are not removed from the bytes
+    sent to the shell; this function only lets the guard see the wrapped
+    command.  Normal sudo usage therefore keeps working, and only the
+    wrapped dangerous operation is refused.
+    """
     text = segment.strip()
     for _ in range(4):
         text = text.lstrip(" \t(){}&\\")
