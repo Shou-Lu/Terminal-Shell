@@ -2,7 +2,7 @@ name: astrbot_plugin_terminal_shell
 display_name: Terminal Shell终端
 short_desc: 深色毛玻璃单页网页 Shell，集成多标签终端、文件管理与设备状态图表
 desc: 在 AstrBot WebUI 中以一个页面提供完整运维面板：多标签终端、文件管理、设备状态函数图、自定义模糊背景、ECDH + AES-256-GCM 加密传输，以及 /终端 管理员指令与 LLM Shell 工具。
-version: v1.0.5
+version: v1.0.6
 author: Shou-Lu
 repo: https://github.com/Shou-Lu/Terminal-Shell
 icon: logo.png
