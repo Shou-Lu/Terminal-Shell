@@ -28,6 +28,12 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 from .core.chat_shell import PersistentChatShell
 from .core.crypto import CryptoError, SessionCipher
 from .core.files import FileError, FileManager
+from .core.guard import (
+    LLM_REVIEW_SYSTEM_PROMPT,
+    build_llm_review_prompt,
+    check_command,
+    parse_llm_review,
+)
 from .core.storage import (
     BackgroundError,
     BackgroundStore,
@@ -41,6 +47,7 @@ from .core.terminal import TerminalError, TerminalManager
 PLUGIN_NAME = "astrbot_plugin_terminal_shell"
 VIEW_NAME = "terminal"
 PLUGIN_DIR_NAME = Path(__file__).resolve().parent.name
+LLM_REVIEW_TIMEOUT = 8.0
 ROUTE_PREFIXES = tuple(
     dict.fromkeys(
         prefix
@@ -223,6 +230,12 @@ class TerminalShellPlugin(Star):
             return "终端插件已被管理员禁用。"
         if not event.is_admin():
             return "权限不足：terminal_shell_exec 仅限 AstrBot 管理员使用。"
+        if not check_command(command) and self._config_bool(
+            "llm_command_review", True
+        ):
+            review = await self._review_llm_command(event, command)
+            if review:
+                return review
         try:
             output = await self.chat_shell.run(
                 self._shell_key(event), command
@@ -238,6 +251,60 @@ class TerminalShellPlugin(Star):
         except Exception:
             logger.exception("Terminal Shell LLM tool failed")
             return "[终端错误] 命令执行失败，请查看 AstrBot 日志。"
+
+    async def _review_llm_command(
+        self, event: AstrMessageEvent, command: str
+    ) -> str:
+        """Ask the active chat model to review an LLM-issued command.
+
+        Returns an empty string when the command is allowed or when the
+        optional review cannot run.  The local deterministic guard in
+        ``core.guard`` remains mandatory and is always evaluated first.
+        """
+        umo = getattr(event, "unified_msg_origin", None)
+        try:
+            provider = await self.context.get_using_provider_async(umo=umo)
+        except Exception:
+            logger.warning(
+                "Terminal Shell could not resolve an LLM provider for command review; "
+                "continuing with the local guard",
+                exc_info=True,
+            )
+            return ""
+        if not provider:
+            return ""
+        try:
+            response = await asyncio.wait_for(
+                provider.text_chat(
+                    prompt=build_llm_review_prompt(command),
+                    system_prompt=LLM_REVIEW_SYSTEM_PROMPT,
+                    persist=False,
+                ),
+                timeout=LLM_REVIEW_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Terminal Shell LLM command review timed out; "
+                "continuing with the local guard"
+            )
+            return ""
+        except Exception:
+            logger.warning(
+                "Terminal Shell LLM command review failed; "
+                "continuing with the local guard",
+                exc_info=True,
+            )
+            return ""
+        blocked, reason = parse_llm_review(
+            getattr(response, "completion_text", "") or ""
+        )
+        if not blocked:
+            return ""
+        reason = reason or "模型判断该命令可能造成不可逆破坏"
+        return (
+            f"[LLM 指令审核] 已拒绝执行高危命令：{reason}。"
+            "命令未发送到 Shell。"
+        )
 
     async def _open(self, action: str):
         """Check access, parse and decrypt one JSON envelope."""

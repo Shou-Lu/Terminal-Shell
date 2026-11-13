@@ -5,6 +5,12 @@
     "hint": "关闭后，前端将无法建立加密会话或创建任何终端。",
     "default": true
   },
+  "llm_command_review": {
+    "description": "LLM 指令审核",
+    "type": "bool",
+    "hint": "terminal_shell_exec 执行前让当前对话模型复核命令。本地高危规则始终生效，关闭此项只会跳过模型复核。",
+    "default": true
+  },
   "shell": {
     "description": "自定义 Shell 路径",
     "type": "string",
